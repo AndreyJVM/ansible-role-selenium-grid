@@ -25,18 +25,17 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v3
 
-      - name: [Bootstrap] Initial Security & Docker Provisioning (Root)
-        uses: appleboy/ssh-action@v0.1.10
-        continue-on-error: true 
-        with:
-          host: ${{ github.event.inputs.vds_ip }}
-          username: root
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          script: |
-            echo "${{ secrets.SSH_PRIVATE_KEY }}" > /tmp/temp_key
-            curl -sSL https://raw.githubusercontent.com/${{ github.repository }}/main/scripts/setup_secure_vds.sh -o /tmp/setup_secure_vds.sh
-            chmod +x /tmp/setup_secure_vds.sh
-            bash /tmp/setup_secure_vds.sh
+      - name: Install Ansible
+        run: sudo apt-get update && sudo apt-get install -y ansible
+
+      - name: [Bootstrap] Execute Ansible Provisioning (Root)
+        env:
+          ANSIBLE_HOST_KEY_CHECKING: "False"
+        run: |
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > /tmp/deploy_key
+          chmod 600 /tmp/deploy_key
+          # Запускаем Ansible напрямую с CI-раннера, подключаясь к VDS под root
+          ansible-playbook -i "${{ github.event.inputs.vds_ip }}," -u root --private-key /tmp/deploy_key ansible/setup_vds.yml
 
       - name: [Deploy] Synchronize Infrastructure Files
         uses: easingthemes/ssh-deploy@main
@@ -56,6 +55,9 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
             cd /opt/ui-tests-infra
+            
+            # Устанавливаем apache2-utils, так как htpasswd требуется для генерации хэша
+            # (уже должно быть установлено через Ansible, но защита от дурака не повредит)
             
             RAW_PASS="${{ secrets.SELENIUM_PASSWORD }}"
             HASHED_PASS=$(htpasswd -nb "${{ github.event.inputs.basic_user }}" "$RAW_PASS" | sed -e s/\\$/\\$\\$/g)
