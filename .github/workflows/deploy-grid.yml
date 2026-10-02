@@ -1,20 +1,19 @@
-name: Deploy Selenium Grid to Clean VDS
+name: Deploy Selenium Grid to Target Server
 
-# Триггер: ручной запуск, так как мы деплоим инфраструктуру, а не просто пушим код
 on:
   workflow_dispatch:
     inputs:
       vds_ip:
-        description: 'IP-адрес нового VDS'
+        description: 'VDS IP Address'
         required: true
       domain_name:
-        description: 'Доменное имя (например: selenium.yoursite.ru)'
+        description: 'Target domain name (e.g. selenium.yoursite.com)'
         required: true
       acme_email:
-        description: 'Email для Let s Encrypt'
+        description: 'Email for Let s Encrypt certificate notifications'
         required: true
       basic_user:
-        description: 'Логин для доступа к Selenium'
+        description: 'Basic Auth username for Hub access'
         required: true
         default: 'admin'
 
@@ -26,14 +25,7 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v3
 
-      # -------------------------------------------------------------
-      # Шаг 1: Первичная настройка под root.
-      # Выполняется скрипт настройки безопасности и установки Docker.
-      # Отработает только один раз. При повторных запусках на готовый сервер
-      # этот шаг завершится с ошибкой (так как root будет отключен), 
-      # поэтому мы используем continue-on-error: true
-      # -------------------------------------------------------------
-      - name: [Bootstrap] Init Security and Docker (as Root)
+      - name: [Bootstrap] Initial Security & Docker Provisioning (Root)
         uses: appleboy/ssh-action@v0.1.10
         continue-on-error: true 
         with:
@@ -41,17 +33,12 @@ jobs:
           username: root
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            # Закачиваем скрипт инициализации и запускаем его
             echo "${{ secrets.SSH_PRIVATE_KEY }}" > /tmp/temp_key
             curl -sSL https://raw.githubusercontent.com/${{ github.repository }}/main/scripts/setup_secure_vds.sh -o /tmp/setup_secure_vds.sh
             chmod +x /tmp/setup_secure_vds.sh
             bash /tmp/setup_secure_vds.sh
 
-      # -------------------------------------------------------------     
-      # Шаг 2: Копирование файлов инфраструктуры в `/opt/ui-tests-infra`
-      # Выполняется через rsync уже от имени безопасного пользователя `deployer`
-      # -------------------------------------------------------------
-      - name: [Deploy] Copy files via rsync
+      - name: [Deploy] Synchronize Infrastructure Files
         uses: easingthemes/ssh-deploy@main
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
@@ -61,10 +48,7 @@ jobs:
           REMOTE_USER: "deployer"
           TARGET: "/opt/ui-tests-infra"
           
-      # -------------------------------------------------------------
-      # Шаг 3: Запуск самого Selenium Grid
-      # -------------------------------------------------------------
-      - name: [Deploy] Start Docker Compose with Env Variables
+      - name: [Deploy] Initialize Docker Compose Services
         uses: appleboy/ssh-action@v0.1.10
         with:
           host: ${{ github.event.inputs.vds_ip }}
@@ -73,18 +57,12 @@ jobs:
           script: |
             cd /opt/ui-tests-infra
             
-            # Генерация Basic Auth (логин/пароль)
-            # В docker-compose доллары должны быть двойными $$, об этом позаботится sed
             RAW_PASS="${{ secrets.SELENIUM_PASSWORD }}"
             HASHED_PASS=$(htpasswd -nb "${{ github.event.inputs.basic_user }}" "$RAW_PASS" | sed -e s/\\$/\\$\\$/g)
             
-            # Создаем .env файл (чтобы docker-compose его подцепил)
             echo "ACME_EMAIL=${{ github.event.inputs.acme_email }}" > .env
             echo "DOMAIN_NAME=${{ github.event.inputs.domain_name }}" >> .env
             echo "BASIC_AUTH_HASH=${HASHED_PASS}" >> .env
             
-            # Перезапускаем контейнеры с учетом новых файлов.
-            # Флаг --build если образы сменились, -d для фоновой работы
             sudo docker compose -f docker-compose.yml up -d
-            
-            echo "✅ Деплой успешно завершен! Selenium Grid запущен на https://${{ github.event.inputs.domain_name }}"
+            echo "[SUCCESS] Deployment completed successfully."

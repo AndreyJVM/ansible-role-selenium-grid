@@ -16,7 +16,6 @@ services:
       - "--entrypoints.web.http.redirections.entryPoint.scheme=https"
       
       - "--certificatesresolvers.myresolver.acme.tlschallenge=true"
-      # Значения берутся из .env файла
       - "--certificatesresolvers.myresolver.acme.email=${ACME_EMAIL}"
       - "--certificatesresolvers.myresolver.acme.storage=/letsencrypt/acme.json"
     ports:
@@ -30,7 +29,7 @@ services:
       - grid_network
 
   selenium-hub:
-    image: selenium/hub:latest
+    image: selenium/hub:4.20.0
     container_name: selenium-hub
     environment:
       - SE_EVENT_BUS_THREADS=16
@@ -38,21 +37,19 @@ services:
       - "4444:4444" 
     labels:
       - "traefik.enable=true"
-      # Значения берутся из .env файла
       - "traefik.http.routers.selenium.rule=Host(`${DOMAIN_NAME}`)"
       - "traefik.http.routers.selenium.entrypoints=websecure"
       - "traefik.http.routers.selenium.tls.certresolver=myresolver"
       - "traefik.http.services.selenium.loadbalancer.server.port=4444"
       
       - "traefik.http.routers.selenium.middlewares=auth"
-      # Значения берутся из .env файла
       - "traefik.http.middlewares.auth.basicauth.users=${BASIC_AUTH_HASH}"
     restart: unless-stopped
     networks:
       - grid_network
 
   node-docker:
-    image: selenium/node-docker:latest
+    image: selenium/node-docker:4.20.0
     container_name: node-docker
     depends_on:
       - selenium-hub
@@ -62,7 +59,7 @@ services:
       - SE_EVENT_BUS_SUBSCRIBE_PORT=4443
       - SE_NODE_DOCKER_CONFIG_FILENAME=config.toml
     volumes:
-      - ./config.toml:/opt/selenium/config.toml
+      - ./config.toml:/opt/selenium/config.toml:ro
       - /var/run/docker.sock:/var/run/docker.sock
       - ./assets:/opt/selenium/assets
     restart: unless-stopped
