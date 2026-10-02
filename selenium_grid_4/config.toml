@@ -1,0 +1,15 @@
+# selenium/standalone-* images are for the actual browser containers that will be spawned dynamically
+configs = [
+  "selenium/standalone-chrome:latest", '{"browserName": "chrome"}',
+  "selenium/standalone-firefox:latest", '{"browserName": "firefox"}'
+]
+
+# The URI of the Docker daemon. 
+# "unix:///var/run/docker.sock" is standard for Linux/macOS. 
+url = "unix:///var/run/docker.sock"
+# If running on Windows, uncomment the line below and comment the one above
+# url = "npipe:////./pipe/docker_engine"
+
+[node]
+# How many browsers to run in parallel
+max-sessions = 4
