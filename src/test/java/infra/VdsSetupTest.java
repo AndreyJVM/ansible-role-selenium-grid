@@ -6,6 +6,7 @@ import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.Container.ExecResult;
 import org.testcontainers.containers.output.Slf4jLogConsumer;
 import org.testcontainers.containers.wait.strategy.Wait;
+import org.testcontainers.images.builder.ImageFromDockerfile;
 import org.testcontainers.utility.MountableFile;
 
 import java.time.Duration;
@@ -13,7 +14,7 @@ import java.time.Duration;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-@DisplayName("VDS Setup Script Multi-OS Integration Tests")
+@DisplayName("Ansible VDS Setup Playbook Integration Tests")
 public class VdsSetupTest {
 
     @Nested
@@ -30,7 +31,6 @@ public class VdsSetupTest {
         protected String getOsImage() { return "ubuntu:22.04"; }
     }
 
-    // Включаем жизненный цикл PER_CLASS, чтобы @BeforeAll мог быть не статичным
     @TestInstance(TestInstance.Lifecycle.PER_CLASS)
     abstract static class AbstractVdsSetup {
         protected GenericContainer<?> linuxContainer;
@@ -40,32 +40,45 @@ public class VdsSetupTest {
         @BeforeAll
         void setupContainer() {
             System.out.println("=======================================================");
-            System.out.println("🚀 Запуск контейнера и скрипта для образа: " + getOsImage());
+            System.out.println("🚀 Подготовка базового образа (с кэшированием) для: " + getOsImage());
             System.out.println("=======================================================");
 
-            linuxContainer = new GenericContainer<>(getOsImage())
+            // Используем --no-install-recommends для радикального ускорения установки Ansible
+            ImageFromDockerfile cachedImage = new ImageFromDockerfile()
+                    .withDockerfileFromBuilder(builder -> builder
+                            .from(getOsImage())
+                            .env("DEBIAN_FRONTEND", "noninteractive")
+                            .env("TZ", "UTC")
+                            .run("ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone")
+                            .run("apt-get update -qq && apt-get install -qq -y --no-install-recommends ansible ca-certificates openssh-client python3-apt")
+                            .build());
+
+            linuxContainer = new GenericContainer<>(cachedImage)
                     .withPrivilegedMode(true)
                     .withCopyFileToContainer(
-                            MountableFile.forHostPath("scripts/setup_secure_vds.sh"),
-                            "/tmp/setup_secure_vds.sh"
+                            MountableFile.forHostPath("ansible/setup_vds.yml"),
+                            "/tmp/setup_vds.yml"
                     )
-                    // Выполняем все настройки и сам скрипт при старте контейнера (В стиле Given/When)
                     .withCommand("bash", "-c",
+                            // 1. Создаем заглушку для systemctl
                             "printf '#!/bin/bash\\necho \"[MOCK systemctl] $@\"\\nexit 0\\n' > /usr/local/bin/systemctl && " +
                             "chmod +x /usr/local/bin/systemctl && " +
+                            
+                            // 2. Фейковый SSH-ключ у root
                             "mkdir -p /root/.ssh && echo 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5 test-key' > /root/.ssh/authorized_keys && " +
-                            "bash /tmp/setup_secure_vds.sh && " +
+                            
+                            // 3. Запускаем Ansible Playbook локально
+                            "ansible-playbook -c local -i localhost, /tmp/setup_vds.yml && " +
+                            
                             "echo 'SETUP_COMPLETE' && " +
                             "sleep infinity"
                     )
-                    // Подключаем вывод логов контейнера (STDOUT скрипта) прямо в логгер теста
                     .withLogConsumer(new Slf4jLogConsumer(LoggerFactory.getLogger(getOsImage())))
-                    // Инициализируем Wait Strategy: Тест не начнется, пока скрипт не напечатает SETUP_COMPLETE
                     .waitingFor(Wait.forLogMessage(".*SETUP_COMPLETE.*\\s*", 1)
                             .withStartupTimeout(Duration.ofMinutes(15)));
 
             linuxContainer.start();
-            System.out.println("✅ [" + getOsImage() + "] Контейнер готов, скрипт успешно выполнен! Начинаем проверки (Assertions)...");
+            System.out.println("✅ [" + getOsImage() + "] Ansible Playbook успешно отработал! Начинаем проверки (Assertions)...");
         }
 
         @AfterAll
@@ -74,8 +87,6 @@ public class VdsSetupTest {
                 linuxContainer.stop();
             }
         }
-
-        // --- Независимые проверки (В стиле Then) ---
 
         @Test
         @DisplayName("1. Часовой пояс установлен в UTC и служба Chrony активна")
