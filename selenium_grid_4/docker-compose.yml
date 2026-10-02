@@ -1,7 +1,6 @@
 version: '3.8'
 
 services:
-  # Traefik stands as the reverse proxy, automatically handling SSL certificates and Basic Auth
   traefik:
     image: traefik:v3.1
     container_name: traefik
@@ -10,18 +9,15 @@ services:
       - "--providers.docker=true"
       - "--providers.docker.exposedbydefault=false"
       
-      # Entrypoints for HTTP/HTTPS
       - "--entrypoints.web.address=:80"
       - "--entrypoints.websecure.address=:443"
       
-      # Redirect HTTP to HTTPS
       - "--entrypoints.web.http.redirections.entryPoint.to=websecure"
       - "--entrypoints.web.http.redirections.entryPoint.scheme=https"
       
-      # Let's Encrypt configuration
       - "--certificatesresolvers.myresolver.acme.tlschallenge=true"
-      # IMPORTANT: Replace with your actual email address
-      - "--certificatesresolvers.myresolver.acme.email=your-email@example.com"
+      # Значения берутся из .env файла
+      - "--certificatesresolvers.myresolver.acme.email=${ACME_EMAIL}"
       - "--certificatesresolvers.myresolver.acme.storage=/letsencrypt/acme.json"
     ports:
       - "80:80"
@@ -33,38 +29,28 @@ services:
     networks:
       - grid_network
 
-  # The Selenium Hub connects clients (your tests) to the Nodes
   selenium-hub:
     image: selenium/hub:latest
     container_name: selenium-hub
     environment:
-      # Number of threads the event bus uses
       - SE_EVENT_BUS_THREADS=16
     ports:
-      # Ports 4442 and 4443 are used internally for communication between the Hub and Nodes. 
-      # They do not need to be exposed outside the Docker network.
       - "4444:4444" 
     labels:
       - "traefik.enable=true"
-      # IMPORTANT: Replace 'selenium.yourdomain.com' with your actual domain name configured in Selectel
-      - "traefik.http.routers.selenium.rule=Host(`selenium.yourdomain.com`)"
+      # Значения берутся из .env файла
+      - "traefik.http.routers.selenium.rule=Host(`${DOMAIN_NAME}`)"
       - "traefik.http.routers.selenium.entrypoints=websecure"
       - "traefik.http.routers.selenium.tls.certresolver=myresolver"
       - "traefik.http.services.selenium.loadbalancer.server.port=4444"
       
-      # Basic Auth protection.
-      # You MUST generate an htpasswd string for this to work.
-      # Example: for user 'admin' and password 'admin', the string is: admin:$$apr1$$H6uhkV9g$$XSR8egY01VzUidLs0SK50.
-      # (Note the double $$ needed in docker-compose)
-      # Command to generate: htpasswd -nb user password | sed -e s/\\$/\\$\\$/g
       - "traefik.http.routers.selenium.middlewares=auth"
-      # Replace with your generated htpasswd string
-      - "traefik.http.middlewares.auth.basicauth.users=admin:$$apr1$$H6uhkV9g$$XSR8egY01VzUidLs0SK50."
+      # Значения берутся из .env файла
+      - "traefik.http.middlewares.auth.basicauth.users=${BASIC_AUTH_HASH}"
     restart: unless-stopped
     networks:
       - grid_network
 
-  # Node Docker is responsible for spinning up the browser containers efficiently
   node-docker:
     image: selenium/node-docker:latest
     container_name: node-docker
@@ -76,11 +62,8 @@ services:
       - SE_EVENT_BUS_SUBSCRIBE_PORT=4443
       - SE_NODE_DOCKER_CONFIG_FILENAME=config.toml
     volumes:
-      # Config file for Dynamic Grid
       - ./config.toml:/opt/selenium/config.toml
-      # Access to Docker socket is REQUIRED for dynamic container management
       - /var/run/docker.sock:/var/run/docker.sock
-      # Directory to store test assets (e.g., video recordings)
       - ./assets:/opt/selenium/assets
     restart: unless-stopped
     networks:
