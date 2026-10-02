@@ -50,15 +50,38 @@
 
 ---
 
-## ☕ Использование в тестах (Пример)
+## ☕ Использование в тестах (Пример для Java)
 
-Вместо подключения к `http://localhost:4444`, теперь используйте безопасный URL с паролем:
+Хранить пароль открытым текстом прямо в коде тестов — **небезопасно** (он попадет в Git и будет доступен всем разработчикам). Правильный подход — передавать логин, пароль и хост через переменные окружения ОС (Environment Variables) или через System Properties, которые подставятся на этапе запуска сборки (в CI/CD).
+
+Пример защищенной настройки `RemoteWebDriver` в Java:
 
 ```java
-ChromeOptions options = new ChromeOptions();
-// Передаем логин и текстовый пароль прямо в URL:
-URL gridUrl = new URL("https://LOGIN:SUPER_PASSWORD@selenium.yourdomain.com/wd/hub");
-RemoteWebDriver driver = new RemoteWebDriver(gridUrl, options);
+import org.openqa.selenium.chrome.ChromeOptions;
+import org.openqa.selenium.remote.RemoteWebDriver;
+import java.net.URL;
+
+public class BrowserFactory {
+    public static RemoteWebDriver createDriver() throws Exception {
+        ChromeOptions options = new ChromeOptions();
+        
+        // 1. Получаем секреты из переменных окружения (настраиваются в GitHub Actions / Jenkins / GitLab CI)
+        // Предварительно задайте дефолтные значения для локальной отладки (если нужно)
+        String seleniumUser = System.getenv("SELENIUM_USER"); 
+        String seleniumPass = System.getenv("SELENIUM_PASS");
+        String seleniumHost = System.getenv("SELENIUM_HOST"); // например: selenium.yourdomain.com
+        
+        if (seleniumUser == null || seleniumPass == null || seleniumHost == null) {
+            throw new IllegalArgumentException("Не заданы креды для Selenium Grid! Проверьте переменные окружения.");
+        }
+        
+        // 2. Формируем безопасный URL с Basic Auth
+        String gridUrl = String.format("https://%s:%s@%s/wd/hub", seleniumUser, seleniumPass, seleniumHost);
+        
+        // 3. Запускаем сессию
+        return new RemoteWebDriver(new URL(gridUrl), options);
+    }
+}
 ```
 
 > **Примечание:** Устаревшая реализация на базе Aerokube Selenoid для исторических целей перенесена в директорию `legacy_selenoid`. Читайте README внутри нее, если нужно поддержать легаси-проект.
