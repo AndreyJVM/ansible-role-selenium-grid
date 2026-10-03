@@ -18,6 +18,8 @@ services:
       - "--certificatesresolvers.myresolver.acme.tlschallenge=true"
       - "--certificatesresolvers.myresolver.acme.email=${ACME_EMAIL}"
       - "--certificatesresolvers.myresolver.acme.storage=/letsencrypt/acme.json"
+    environment:
+      - DOCKER_API_VERSION=1.44
     ports:
       - "80:80"
       - "443:443"
