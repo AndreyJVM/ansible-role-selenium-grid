@@ -19,7 +19,7 @@ services:
       - "--certificatesresolvers.myresolver.acme.email=${ACME_EMAIL}"
       - "--certificatesresolvers.myresolver.acme.storage=/letsencrypt/acme.json"
     environment:
-      - DOCKER_API_VERSION=1.44
+      - DOCKER_API_VERSION=1.41
     ports:
       - "80:80"
       - "443:443"
@@ -60,6 +60,7 @@ services:
       - SE_EVENT_BUS_PUBLISH_PORT=4442
       - SE_EVENT_BUS_SUBSCRIBE_PORT=4443
       - SE_NODE_DOCKER_CONFIG_FILENAME=config.toml
+      - DOCKER_API_VERSION=1.41
     volumes:
       - ./config.toml:/opt/selenium/config.toml:ro
       - /var/run/docker.sock:/var/run/docker.sock
