@@ -76,7 +76,7 @@ public class VdsSetupTest {
                             "mkdir -p /root/.ssh && echo 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5 test-key' > /root/.ssh/authorized_keys && " +
                             
                             // 3. Запускаем Ansible Playbook локально
-                            "ansible-playbook -c local -i localhost, /tmp/setup_vds.yml && " +
+                            "ansible-playbook -c local -i localhost, -e \"basic_user=admin basic_password=pass domain_name=test.local acme_email=test@test.local\" /tmp/setup_vds.yml && " +
                             
                             "echo 'SETUP_COMPLETE' && " +
                             "sleep infinity"

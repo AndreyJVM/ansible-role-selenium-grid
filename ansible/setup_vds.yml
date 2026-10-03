@@ -7,10 +7,6 @@
     timezone: "UTC"
     ssh_port: 22
 
-    basic_user: "admin"
-    basic_password: "password"
-    domain_name: "selenium.your-domain.com"
-    acme_email: "your_email@example.com"
 
 
   tasks:
