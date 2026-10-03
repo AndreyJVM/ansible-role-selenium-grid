@@ -208,7 +208,8 @@
         mode: '0755'
 
     - name: Generate htpasswd hash for basic auth
-      shell: "htpasswd -nb {{ basic_user }} '{{ basic_password }}' | sed -e s/\$/\$\$/g"
+      shell: >
+        htpasswd -nb {{ basic_user }} '{{ basic_password }}' | sed -e 's/\$/$$/g'
       register: htpasswd_hash
       changed_when: false
 
