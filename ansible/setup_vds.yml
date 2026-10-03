@@ -7,6 +7,24 @@
     timezone: "UTC"
     ssh_port: 22
 
+  vars_prompt:
+    - name: basic_user
+      prompt: "Enter Basic Auth Username for Selenium Grid"
+      default: "admin"
+      private: no
+
+    - name: basic_password
+      prompt: "Enter Basic Auth Password"
+      private: yes
+
+    - name: domain_name
+      prompt: "Enter Domain Name (e.g. selenium.my-domain.com)"
+      private: no
+
+    - name: acme_email
+      prompt: "Enter Email for Let's Encrypt SSL"
+      private: no
+
 
 
   tasks:
