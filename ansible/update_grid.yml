@@ -1,0 +1,26 @@
+﻿---
+- name: Update Grid Configuration
+  hosts: all
+  become: yes
+  vars:
+    deploy_user: "deployer"
+
+  tasks:
+    - name: Copy Grid configuration
+      copy:
+        src: ../selenium_grid_4/
+        dest: /opt/ui-tests-infra/
+        owner: "{{ deploy_user }}"
+        group: "{{ deploy_user }}"
+
+    - name: Ensure proper ownership of project directory
+      file:
+        path: /opt/ui-tests-infra
+        owner: "{{ deploy_user }}"
+        group: "{{ deploy_user }}"
+        recurse: yes
+
+    - name: Restart Docker Compose services
+      shell: docker compose -f docker-compose.yml up -d --force-recreate
+      args:
+        chdir: /opt/ui-tests-infra
