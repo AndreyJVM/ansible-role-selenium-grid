@@ -59,6 +59,14 @@ public class VdsSetupTest {
                             MountableFile.forHostPath("ansible/setup_vds.yml"),
                             "/tmp/setup_vds.yml"
                     )
+                    .withCopyFileToContainer(
+                            MountableFile.forHostPath("selenium_grid_4"),
+                            "/selenium_grid_4"
+                    )
+                    .withCopyFileToContainer(
+                            MountableFile.forHostPath("ansible/templates"),
+                            "/tmp/templates"
+                    )
                     .withCommand("bash", "-c",
                             // 1. Создаем заглушку для systemctl
                             "printf '#!/bin/bash\\necho \"[MOCK systemctl] $@\"\\nexit 0\\n' > /usr/local/bin/systemctl && " +
@@ -117,6 +125,16 @@ public class VdsSetupTest {
 
             ExecResult sshPermCheck = linuxContainer.execInContainer("stat", "-c", "%a", "/home/deployer/.ssh/authorized_keys");
             assertTrue(sshPermCheck.getStdout().trim().endsWith("600"), "Права на файл authorized_keys должны быть 600");
+        }
+
+        @Test
+        @DisplayName("7. Конфигурация Grid и .env развернуты")
+        void shouldDeployGridConfiguration() throws Exception {
+            ExecResult envCheck = linuxContainer.execInContainer("test", "-f", "/opt/ui-tests-infra/.env");
+            assertEquals(0, envCheck.getExitCode(), "Файл .env должен существовать");
+            
+            ExecResult composeCheck = linuxContainer.execInContainer("test", "-f", "/opt/ui-tests-infra/docker-compose.yml");
+            assertEquals(0, composeCheck.getExitCode(), "Файл docker-compose.yml должен существовать");
         }
 
         @Test

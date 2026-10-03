@@ -7,6 +7,12 @@
     timezone: "UTC"
     ssh_port: 22
 
+    basic_user: "admin"
+    basic_password: "password"
+    domain_name: "selenium.your-domain.com"
+    acme_email: "your_email@example.com"
+
+
   tasks:
     - name: Update APT cache
       apt:
@@ -186,6 +192,40 @@
         owner: "{{ deploy_user }}"
         group: "{{ deploy_user }}"
         mode: '0755'
+
+    - name: Generate htpasswd hash for basic auth
+      shell: "htpasswd -nb {{ basic_user }} '{{ basic_password }}' | sed -e s/\$/\$\$/g"
+      register: htpasswd_hash
+      changed_when: false
+
+    - name: Copy Grid configuration
+      copy:
+        src: ../selenium_grid_4/
+        dest: /opt/ui-tests-infra/
+        owner: "{{ deploy_user }}"
+        group: "{{ deploy_user }}"
+
+    - name: Ensure proper ownership of project directory
+      file:
+        path: /opt/ui-tests-infra
+        owner: "{{ deploy_user }}"
+        group: "{{ deploy_user }}"
+        recurse: yes
+
+    - name: Template .env file
+      template:
+        src: templates/env.j2
+        dest: /opt/ui-tests-infra/.env
+        owner: "{{ deploy_user }}"
+        group: "{{ deploy_user }}"
+        mode: '0600'
+
+    - name: Start Docker Compose services
+      shell: docker compose -f docker-compose.yml up -d
+      args:
+        chdir: /opt/ui-tests-infra
+      ignore_errors: yes
+
 
   handlers:
     - name: restart sshd
