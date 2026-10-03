@@ -8,8 +8,13 @@ import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.chrome.ChromeOptions;
 import org.openqa.selenium.remote.RemoteWebDriver;
 
+import java.io.InputStream;
 import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.Duration;
+import java.util.Properties;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -21,31 +26,43 @@ public class RemoteGridTest {
 
     @BeforeEach
     void setup() throws Exception {
-        // 1. Безопасное получение учетных данных из переменных окружения ОС
-        // Никогда не храним логины/пароли/IP в коде!
-        String gridUser = System.getenv("GRID_USER");
-        String gridPass = System.getenv("GRID_PASS");
-        String gridDomain = System.getenv("GRID_DOMAIN");
+        // 1. Пытаемся загрузить локальные секреты из файла .env.properties (который добавлен в .gitignore)
+        Properties props = new Properties();
+        Path envFile = Paths.get(".env.properties");
+        
+        if (Files.exists(envFile)) {
+            try (InputStream in = Files.newInputStream(envFile)) {
+                props.load(in);
+            }
+        }
 
-        // Для локальной отладки (если переменные не заданы), просим их установить
+        // 2. Читаем настройки: приоритет отдаем переменным среды (для CI/CD), 
+        // затем локальному файлу .env.properties (для разработчика)
+        String gridUser = System.getenv("GRID_USER") != null ? System.getenv("GRID_USER") : props.getProperty("GRID_USER");
+        String gridPass = System.getenv("GRID_PASS") != null ? System.getenv("GRID_PASS") : props.getProperty("GRID_PASS");
+        String gridDomain = System.getenv("GRID_DOMAIN") != null ? System.getenv("GRID_DOMAIN") : props.getProperty("GRID_DOMAIN");
+
         if (gridUser == null || gridPass == null || gridDomain == null) {
             throw new IllegalStateException(
-                    "Environment variables GRID_USER, GRID_PASS, and GRID_DOMAIN must be set!\n" +
-                    "Example: export GRID_USER=admin GRID_PASS=superpass GRID_DOMAIN=selenium.my-domain.com"
+                    "Credentials not found!\n" +
+                    "Create a file named '.env.properties' in the project root with the following content:\n" +
+                    "GRID_USER=admin\n" +
+                    "GRID_PASS=superpass\n" +
+                    "GRID_DOMAIN=selenium.my-domain.com\n" +
+                    "(This file is ignored by Git and protects your secrets from terminal history)"
             );
         }
 
-        // 2. Формируем URL для Basic Auth
-        // Формат: https://user:pass@domain.com/wd/hub
+        // 3. Формируем URL для Basic Auth
         String gridUrl = String.format("https://%s:%s@%s/wd/hub", gridUser, gridPass, gridDomain);
 
-        // 3. Настраиваем опции браузера (запускаем Chrome)
+        // 4. Настраиваем опции браузера (запускаем Chrome)
         ChromeOptions options = new ChromeOptions();
         options.addArguments("--start-maximized");
         options.addArguments("--disable-infobars");
         options.addArguments("--disable-dev-shm-usage");
 
-        // 4. Подключаемся к Grid
+        // 5. Подключаемся к Grid
         this.driver = new RemoteWebDriver(new URL(gridUrl), options);
         this.driver.manage().timeouts().implicitlyWait(Duration.ofSeconds(10));
     }

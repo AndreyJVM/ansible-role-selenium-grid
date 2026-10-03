@@ -3,3 +3,6 @@
 /workspace.xml
 .idea
 target/
+
+# Local environment secrets
+.env.properties
