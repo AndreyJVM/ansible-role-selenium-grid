@@ -1,1 +1,17 @@
 .idea/
+
+# Ansible
+*.retry
+.molecule/
+
+# IDEs & OS
+.vscode/
+.DS_Store
+
+# Java / Maven (for tests)
+target/
+*.class
+
+# Python
+__pycache__/
+*.pyc

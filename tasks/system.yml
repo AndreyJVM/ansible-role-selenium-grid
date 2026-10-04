@@ -1,0 +1,73 @@
+---
+- name: Update APT cache
+  ansible.builtin.apt:
+    update_cache: yes
+    cache_valid_time: 3600
+  environment:
+    DEBIAN_FRONTEND: noninteractive
+
+- name: Install base utilities and security tools
+  ansible.builtin.apt:
+    name:
+      - sudo
+      - curl
+      - wget
+      - git
+      - ufw
+      - fail2ban
+      - apache2-utils
+      - apt-transport-https
+      - ca-certificates
+      - software-properties-common
+      - lsb-release
+      - openssh-server
+      - chrony
+      - tzdata
+    state: present
+  environment:
+    DEBIAN_FRONTEND: noninteractive
+
+- name: Set timezone
+  community.general.timezone:
+    name: "{{ selenium_grid_timezone }}"
+  # В Docker-контейнерах нет доступа к hwclock, часто падает с ошибкой.
+  # На реальных VDS работает стабильно.
+  ignore_errors: yes
+
+- name: Ensure Chrony is running
+  ansible.builtin.service:
+    name: chrony
+    state: started
+    enabled: yes
+
+- name: Create service user
+  ansible.builtin.user:
+    name: "{{ selenium_grid_deploy_user }}"
+    shell: /bin/bash
+    groups: sudo
+    append: yes
+    create_home: yes
+
+- name: Set passwordless sudo for service user
+  ansible.builtin.copy:
+    dest: "/etc/sudoers.d/{{ selenium_grid_deploy_user }}"
+    content: "{{ selenium_grid_deploy_user }} ALL=(ALL) NOPASSWD:ALL"
+    mode: '0440'
+
+- name: Ensure .ssh directory exists for deploy user
+  ansible.builtin.file:
+    path: "/home/{{ selenium_grid_deploy_user }}/.ssh"
+    state: directory
+    owner: "{{ selenium_grid_deploy_user }}"
+    group: "{{ selenium_grid_deploy_user }}"
+    mode: '0700'
+
+- name: Copy authorized_keys from root to deploy user
+  ansible.builtin.copy:
+    src: /root/.ssh/authorized_keys
+    dest: "/home/{{ selenium_grid_deploy_user }}/.ssh/authorized_keys"
+    owner: "{{ selenium_grid_deploy_user }}"
+    group: "{{ selenium_grid_deploy_user }}"
+    mode: '0600'
+    remote_src: yes
+  ignore_errors: yes

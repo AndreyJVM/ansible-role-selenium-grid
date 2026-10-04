@@ -1,0 +1,61 @@
+---
+- name: Configure UFW - Default deny incoming
+  community.general.ufw:
+    default: deny
+    direction: incoming
+
+- name: Configure UFW - Default allow outgoing
+  community.general.ufw:
+    default: allow
+    direction: outgoing
+
+- name: Allow SSH in UFW
+  community.general.ufw:
+    rule: allow
+    port: "{{ selenium_grid_ssh_port }}"
+    proto: tcp
+
+- name: Allow HTTP in UFW
+  community.general.ufw:
+    rule: allow
+    port: "80"
+    proto: tcp
+
+- name: Allow HTTPS in UFW
+  community.general.ufw:
+    rule: allow
+    port: "443"
+    proto: tcp
+
+- name: Enable UFW
+  community.general.ufw:
+    state: enabled
+
+- name: Ensure Fail2Ban is running
+  ansible.builtin.service:
+    name: fail2ban
+    state: started
+    enabled: yes
+  # В Docker-контейнерах часто падает из-за отсутствия auth.log и iptables
+  ignore_errors: yes
+
+- name: Disable Root Login over SSH
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?PermitRootLogin'
+    line: 'PermitRootLogin no'
+  notify: restart sshd
+
+- name: Disable Password Authentication over SSH
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?PasswordAuthentication'
+    line: 'PasswordAuthentication no'
+  notify: restart sshd
+
+- name: Set Custom SSH Port
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?Port'
+    line: "Port {{ selenium_grid_ssh_port }}"
+  notify: restart sshd

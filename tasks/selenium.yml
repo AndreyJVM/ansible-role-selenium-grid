@@ -1,0 +1,43 @@
+---
+- name: Create project directory
+  ansible.builtin.file:
+    path: /opt/ui-tests-infra
+    state: directory
+    owner: "{{ selenium_grid_deploy_user }}"
+    group: "{{ selenium_grid_deploy_user }}"
+    mode: '0755'
+
+- name: Generate htpasswd hash for basic auth
+  ansible.builtin.shell: >
+    htpasswd -nb {{ basic_user }} '{{ basic_password }}' | sed -e 's/\$/$$/g'
+  register: htpasswd_hash
+  changed_when: false
+  no_log: true
+
+- name: Copy Grid configuration
+  ansible.builtin.copy:
+    src: selenium_grid_4/
+    dest: /opt/ui-tests-infra/
+    owner: "{{ selenium_grid_deploy_user }}"
+    group: "{{ selenium_grid_deploy_user }}"
+
+- name: Ensure proper ownership of project directory
+  ansible.builtin.file:
+    path: /opt/ui-tests-infra
+    owner: "{{ selenium_grid_deploy_user }}"
+    group: "{{ selenium_grid_deploy_user }}"
+    recurse: yes
+
+- name: Template .env file
+  ansible.builtin.template:
+    src: env.j2
+    dest: /opt/ui-tests-infra/.env
+    owner: "{{ selenium_grid_deploy_user }}"
+    group: "{{ selenium_grid_deploy_user }}"
+    mode: '0600'
+
+- name: Start Docker Compose services
+  ansible.builtin.shell: docker compose -f docker-compose.yml up -d
+  args:
+    chdir: /opt/ui-tests-infra
+  ignore_errors: yes
