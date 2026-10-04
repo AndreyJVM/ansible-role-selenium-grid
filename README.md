@@ -1,48 +1,44 @@
-# UI Tests Infrastructure
+# Selenium Grid 4 Secure Deployment Role
+
+[![Ansible Galaxy](https://img.shields.io/badge/Ansible%20Galaxy-AndreyJVM.selenium__grid__secure-blue)](https://galaxy.ansible.com/AndreyJVM/selenium_grid_secure)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 > [!IMPORTANT]
-> **Безопасность превыше всего.** Многие репозитории предлагают быстрые скрипты для развертывания Selenium Grid. Но если вам важна реальная безопасность (закрытые порты, отсутствие root-доступа, обязательная Basic Auth, и автоматические сертификаты Let's Encrypt для HTTPS) — **вы по адресу**. Вся инфраструктура разворачивается автоматически, не оставляя дыр для ботов и майнеров.
+> **Security First.** Many repositories offer quick scripts to deploy Selenium Grid. However, if real security matters to you (closed ports, no root access, mandatory Basic Auth, and automated Let's Encrypt certificates for HTTPS) — **you are in the right place**. The entire infrastructure is deployed automatically, leaving no backdoors for bots or cryptominers.
 
-Репозиторий содержит инфраструктурные скрипты, Ansible-плейбуки и файлы конфигурации для развертывания масштабируемой среды Selenium Grid 4 на Linux VDS.
+An Ansible Role that automates the deployment of a highly scalable **Selenium Grid 4** environment on a fresh Linux VDS. It configures the server, secures it, installs Docker, and launches the Grid behind a **Traefik Reverse Proxy**.
 
+## Table of Contents
+- [Features](#features)
+- [Requirements](#requirements)
+- [Usage (Ansible Galaxy)](#usage-ansible-galaxy)
+- [Updating the Grid](#updating-the-grid)
+- [Integration with Java (WebDriver Factory)](#integration-with-java-webdriver-factory)
 
-## Оглавление
-- [Основные компоненты](#основные-компоненты)
-- [Интеграция в ваши проекты (WebDriver Factory)](#интеграция-в-ваши-проекты-webdriver-factory)
-- [Инструкция по развертыванию сервера](#инструкция-по-развертыванию-сервера)
-  - [Шаг 1. Требования к серверу перед запуском](#шаг-1-требования-к-серверу-перед-запуском)
-  - [Шаг 2. Развертывание (Ansible)](#шаг-2-развертывание-ansible)
-- [Обновление инфраструктуры](#обновление-инфраструктуры)
-- [Запуск автотестов](#запуск-автотестов)
+## Features
 
-## Основные компоненты
+- **Selenium Grid 4 (Router + Nodes):** Modern implementation of Selenium Grid, ready for scaling.
+- **Traefik (Reverse Proxy):** Provides routing and HTTPS for secure operation.
+- **Let's Encrypt:** Traefik automatically generates and renews valid SSL/TLS certificates.
+- **Basic Auth:** Mandatory authentication for accessing the Grid nodes.
+- **Server Initialization:** Automatically sets up the VDS (creates a non-root `deployer` user, installs Docker, configures UFW firewall, secures SSH by disabling root login and password auth, generates `htpasswd`, and deploys the Grid).
 
-- **Selenium Grid 4 (Router + Nodes):** Современная реализация Grid, готовая к масштабированию.
-- **Traefik (Reverse Proxy):** Обеспечивает маршрутизацию трафика и HTTPS для безопасной работы.
-- **Let's Encrypt:** Traefik автоматически генерирует и продлевает валидные SSL/TLS сертификаты.
-- **Basic Auth:** Установлена обязательная аутентификация для доступа к узлу Grid.
-- **Инициализация сервера (Ansible):** Интегрирован Ansible-playbook для первичной настройки VDS (создание non-root пользователя, установка Docker, UFW-файрвол, защита SSH, генерация `htpasswd` и деплой Grid).
+## Requirements
 
----
+Before running the playbook, ensure your server meets the following conditions:
+- [x] **Clean OS:** Fresh installation of Ubuntu 22.04 LTS, Ubuntu 24.04 LTS, or Debian 12. No prior setup (Docker, Nginx, etc.) is required.
+- [x] **SSH Access:** Your public SSH key is added to `/root/.ssh/authorized_keys`. You must be able to SSH into the server as `root` without a password.
+- [x] **Configured DNS:** An `A` record points to the public IP address of this VDS (e.g., `selenium.my-domain.com`). *Wait for DNS propagation, otherwise Let's Encrypt will fail to issue the certificate!*
+- [x] **Hardware:** Minimum 4 vCPU and 8 GB RAM (to comfortably run the hub and 3-4 parallel browser sessions).
 
-## Инструкция по развертыванию сервера
+## Usage (Ansible Galaxy)
 
-### Шаг 1. Требования к серверу перед запуском
-
-Перед запуском Ansible-плейбука убедитесь, что ваш сервер соответствует следующим условиям:
-- [x] **Чистая ОС:** Установлена свежая версия Ubuntu 22.04 LTS, Ubuntu 24.04 LTS или Debian 12. Никакой предварительной настройки (Docker, Nginx) не требуется.
-- [x] **SSH-доступ:** На сервер добавлен ваш публичный SSH-ключ (в `/root/.ssh/authorized_keys`). Вы можете зайти на сервер по команде `ssh root@IP_СЕРВЕРА` без пароля.
-- [x] **Настроенный DNS:** В панели управления вашим доменом создана `A`-запись, которая указывает (например, `selenium.my-domain.com`) на публичный IP-адрес этого VDS. *Дождитесь обновления DNS, иначе Let's Encrypt не сможет выпустить сертификат!*
-- [x] **Аппаратные ресурсы:** Минимум 4 vCPU и 8 ГБ RAM (для запуска хаба и 3-4 параллельных браузеров).
-
-### Шаг 2. Использование Ansible Role
-
-Установите роль из Ansible Galaxy:
+Install the role from Ansible Galaxy:
 ```bash
 ansible-galaxy install AndreyJVM.selenium_grid_secure
 ```
 
-Создайте у себя файл `playbook.yml`:
+Create a `playbook.yml` file on your local machine:
 ```yaml
 ---
 - hosts: all
@@ -66,30 +62,27 @@ ansible-galaxy install AndreyJVM.selenium_grid_secure
     - AndreyJVM.selenium_grid_secure
 ```
 
-Запустите установку:
+Run the playbook:
 ```bash
-ansible-playbook -i "IP_ВАШЕГО_СЕРВЕРА," -u root playbook.yml
+ansible-playbook -i "YOUR_SERVER_IP," -u root playbook.yml
 ```
-**Готово!** Сервер настроен, закрыт файрволом, и на нём поднят защищенный Selenium Grid.
+**Done!** Your server is configured, secured with a firewall, and running a secure Selenium Grid.
 
----
+## Updating the Grid
 
-## Обновление инфраструктуры
+If you manually modify the configuration files inside the role (e.g., adding new browser nodes to `docker-compose.yml`), you do not need to run the full server initialization again.
 
-Для быстрого обновления конфигурации (без переустановки системных пакетов) используйте тег `update` или запускайте роль напрямую:
+Use the `update` tag to quickly push configuration changes and restart the containers. Since `root` login is disabled after the first run, execute this as the `deployer` user:
 
 ```bash
-ansible-playbook -i "IP_ВАШЕГО_СЕРВЕРА," -u deployer playbook.yml --tags update
+ansible-playbook -i "YOUR_SERVER_IP," -u deployer playbook.yml --tags update
 ```
 
----
+## Integration with Java (WebDriver Factory)
 
+You do not need to copy this repository into your test automation projects. This infrastructure lives independently. In your Java project, simply implement a Factory pattern to manage your WebDriver.
 
-## Интеграция в ваши проекты (WebDriver Factory)
-
-Вам не нужно копировать этот инфраструктурный проект в свои репозитории с автотестами. Инфраструктура живет своей жизнью, а в вашем проекте на Java (с использованием Selenium или Selenide) достаточно реализовать паттерн Фабрики для управления WebDriver.
-
-Пример `WebDriverFactory` на Java:
+Example `WebDriverFactory.java`:
 
 ```java
 import org.openqa.selenium.WebDriver;
@@ -100,11 +93,11 @@ import java.net.URI;
 
 public class WebDriverFactory {
     public static WebDriver createDriver() {
-        // Управляем запуском через переменную RUN_ON_GRID
+        // Control execution via RUN_ON_GRID property
         boolean runOnGrid = Boolean.parseBoolean(System.getProperty("RUN_ON_GRID", "false"));
 
         if (runOnGrid) {
-            // Подключаемся к вашей защищенной инфраструктуре на VDS
+            // Connect to your secured infrastructure on the VDS
             ChromeOptions options = new ChromeOptions();
             String gridUrl = String.format("https://%s:%s@%s/wd/hub", 
                     System.getenv("GRID_USER"), 
@@ -116,58 +109,19 @@ public class WebDriverFactory {
                 throw new RuntimeException("Failed to connect to Remote Grid", e); 
             }
         } else {
-            // Локальный запуск на компьютере разработчика (дебаг)
+            // Local execution for debugging
             return new ChromeDriver(); 
         }
     }
 }
 ```
 
-Запуск тестов локально:
+Run tests locally:
 ```bash
 mvn test
 ```
 
-Запуск тестов в CI/CD контуре на удаленном сервере:
+Run tests in CI/CD pipeline on the remote server:
 ```bash
 mvn test -DRUN_ON_GRID=true
 ```
-
-## Запуск автотестов
-
-В проекте реализованы 2 вида проверок:
-
-### 1. Инфраструктурные тесты (Local Testcontainers)
-Проверяют работоспособность самого Ansible-плейбука на чистых образах Ubuntu 22.04 и 24.04 внутри локального Docker. Запускаются автоматически в GitHub Actions при каждом пуше.
-
-Для локального запуска (требуется локальный Docker и Maven):
-```bash
-mvn test -Dtest="infra.*"
-```
-
-### 2. UI-тесты на удаленном сервере (RemoteGridTest)
-Демонстрируют подключение к реальному Selenium Grid серверу с использованием Basic Auth. 
-
-**Локальный запуск (безопасно):**
-Создайте в корне проекта файл `.env.properties` (он добавлен в `.gitignore`, поэтому пароли не попадут в репозиторий):
-```properties
-GRID_USER=admin
-GRID_PASS=ваш_супер_пароль
-GRID_DOMAIN=selenium.ваш-домен.com
-```
-Запуск:
-```bash
-mvn test -Dtest="ui.RemoteGridTest"
-```
-
-**Запуск через GitHub Actions:**
-В репозитории настроен ручной запуск тестов (`Run Remote UI Tests`). 
-Для его работы добавьте следующие секреты в настройках репозитория GitHub (`Settings -> Secrets and variables -> Actions -> New repository secret`):
-* `GRID_USER`
-* `GRID_PASS`
-* `GRID_DOMAIN`
-
-После этого вы сможете запускать тесты на вашем сервере нажатием кнопки во вкладке `Actions`.
-
-> [!WARNING]
-> Никогда не коммитьте логины и пароли в исходный код (даже для тестовых контуров). Секретные данные должны передаваться исключительно через переменные окружения ОС на агенте сборки или через локальный `.env.properties`.
