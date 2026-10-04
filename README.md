@@ -11,7 +11,8 @@ An Ansible Role that automates the deployment of a highly scalable **Selenium Gr
 ## Table of Contents
 - [Features](#features)
 - [Requirements](#requirements)
-- [Usage (Ansible Galaxy)](#usage-ansible-galaxy)
+- [Quick Start (Copy-Paste)](#quick-start-copy-paste)
+- [Advanced Configuration](#advanced-configuration)
 - [Updating the Grid](#updating-the-grid)
 - [Integration with Java (WebDriver Factory)](#integration-with-java-webdriver-factory)
 
@@ -27,19 +28,28 @@ An Ansible Role that automates the deployment of a highly scalable **Selenium Gr
 
 Before running the playbook, ensure your server meets the following conditions:
 - [x] **Clean OS:** Fresh installation of Ubuntu 22.04 LTS, Ubuntu 24.04 LTS, or Debian 12. No prior setup (Docker, Nginx, etc.) is required.
-- [x] **SSH Access:** Your public SSH key is added to `/root/.ssh/authorized_keys`. You must be able to SSH into the server as `root` without a password.
+- [x] **SSH Access:** Your public SSH key is added to `/root/.ssh/authorized_keys`. You must be able to SSH into the server as `root` without a password from your local terminal.
 - [x] **Configured DNS:** An `A` record points to the public IP address of this VDS (e.g., `selenium.my-domain.com`). *Wait for DNS propagation, otherwise Let's Encrypt will fail to issue the certificate!*
 - [x] **Hardware:** Minimum 4 vCPU and 8 GB RAM (to comfortably run the hub and 3-4 parallel browser sessions).
 
-## Usage (Ansible Galaxy)
+## Quick Start (Copy-Paste)
 
-Install the role from Ansible Galaxy:
+This guide is designed for QA Automation Engineers. You don't need advanced DevOps skills! Just open your local Linux/macOS terminal and copy-paste the blocks below.
+
+**1. Install Ansible (if you don't have it on your local machine)**
+```bash
+sudo apt update && sudo apt install -y ansible
+```
+
+**2. Download the role from Ansible Galaxy**
 ```bash
 ansible-galaxy install AndreyJVM.selenium_grid_secure
 ```
 
-Create a `playbook.yml` file on your local machine:
-```yaml
+**3. Create the deployment file**
+Copy this entire block and paste it into your terminal, then press Enter. It will create a `deploy-grid.yml` file automatically:
+```bash
+cat << 'EOF' > deploy-grid.yml
 ---
 - hosts: all
   become: yes
@@ -57,25 +67,41 @@ Create a `playbook.yml` file on your local machine:
     - name: acme_email
       prompt: "Enter Email for Let's Encrypt SSL"
       private: no
-
   roles:
     - AndreyJVM.selenium_grid_secure
+EOF
 ```
 
-Run the playbook:
+**4. Run the deployment**
+Replace `192.168.1.100` with the actual IP address of your new server:
 ```bash
-ansible-playbook -i "YOUR_SERVER_IP," -u root playbook.yml
+ansible-playbook -i "192.168.1.100," -u root deploy-grid.yml
 ```
-**Done!** Your server is configured, secured with a firewall, and running a secure Selenium Grid.
+*(⚠️ Note: Do not forget the comma `,` after the IP address!)*
+
+**Done!** The script will ask you for the domain, email, and credentials, and then do all the magic. 
+
+## Advanced Configuration
+
+If you want to customize the deployment, you can add variables to your `deploy-grid.yml` file under a `vars:` section:
+
+```yaml
+  vars:
+    selenium_grid_project_path: "/opt/my-custom-path" # Default is /opt/ui-tests-infra
+    selenium_grid_http_port: "8080"                   # Default is 80
+    selenium_grid_https_port: "8443"                  # Default is 443
+    selenium_grid_version: "4.20.0"                   # Override Selenium version
+    traefik_version: "v3.6"                           # Override Traefik version
+```
 
 ## Updating the Grid
 
 If you manually modify the configuration files inside the role (e.g., adding new browser nodes to `docker-compose.yml`), you do not need to run the full server initialization again.
 
-Use the `update` tag to quickly push configuration changes and restart the containers. Since `root` login is disabled after the first run, execute this as the `deployer` user:
+Use the `update` tag to quickly push configuration changes and restart the containers. Since `root` login is automatically disabled after the first run for security reasons, execute this as the `deployer` user:
 
 ```bash
-ansible-playbook -i "YOUR_SERVER_IP," -u deployer playbook.yml --tags update
+ansible-playbook -i "192.168.1.100," -u deployer deploy-grid.yml --tags update
 ```
 
 ## Integration with Java (WebDriver Factory)
