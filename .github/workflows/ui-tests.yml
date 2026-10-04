@@ -1,0 +1,31 @@
+﻿name: Run Remote UI Tests
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to run tests against'
+        required: true
+        default: 'production'
+
+jobs:
+  ui-tests:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: 'maven'
+
+      - name: Run UI Tests on Remote Grid
+        env:
+          GRID_USER: ${{ secrets.GRID_USER }}
+          GRID_PASS: ${{ secrets.GRID_PASS }}
+          GRID_DOMAIN: ${{ secrets.GRID_DOMAIN }}
+        run: mvn test -Dtest="ui.RemoteGridTest"

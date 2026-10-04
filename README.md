@@ -8,11 +8,11 @@
 - **Traefik (Reverse Proxy):** Обеспечивает маршрутизацию трафика и HTTPS для безопасной работы.
 - **Let's Encrypt:** Traefik автоматически генерирует и продлевает валидные SSL/TLS сертификаты.
 - **Basic Auth:** Установлена обязательная аутентификация для доступа к узлу Grid.
-- **Инициализация сервера (Ansible):** Интегрирован Ansible-playbook для первичной настройки VDS (создание non-root пользователя, установка Docker, UFW-файрвол, защита SSH).
+- **Инициализация сервера (Ansible):** Интегрирован Ansible-playbook для первичной настройки VDS (создание non-root пользователя, установка Docker, UFW-файрвол, защита SSH, генерация `htpasswd` и деплой Grid).
 
 ---
 
-## Инструкция по развертыванию
+## Инструкция по развертыванию сервера
 
 ### Шаг 1. Подготовка сервера и DNS
 1. Арендуйте VDS-сервер на базе Ubuntu 22.04 LTS / 24.04 LTS или Debian 12 (рекомендуемые характеристики: от 4 vCPU, 8 ГБ RAM в зависимости от степени параллелизма). При создании сервера необходимо внедрить открытый SSH-ключ.
@@ -35,53 +35,6 @@
 
 ---
 
-## Тестирование Инфраструктуры
-
-В проекте реализованы автоматизированные BDD интеграционные тесты с использованием **Java + Testcontainers**. Тесты автоматически поднимают чистые образы ОС (Ubuntu 22.04 и 24.04), прогоняют `ansible-playbook` и валидируют состояние системы (создание пользователей, UFW, Chrony, SSH-ключи).
-
-Для запуска тестов (требуется локально установленный Docker и Maven):
-```bash
-mvn test
-```
-
----
-
-## Пример интеграции (Java)
-
-> [!WARNING]
-> Никогда не коммитьте логины и пароли в исходный код (даже для тестовых контуров).
-
-Секретные данные должны передаваться исключительно через переменные окружения ОС (Environment Variables) на агенте сборки.
-
-Пример инициализации драйвера:
-
-```java
-import org.openqa.selenium.chrome.ChromeOptions;
-import org.openqa.selenium.remote.RemoteWebDriver;
-import java.net.URL;
-
-public class BrowserFactory {
-    public static RemoteWebDriver createDriver() throws Exception {
-        ChromeOptions options = new ChromeOptions();
-        
-        String seleniumUser = System.getenv("SELENIUM_USER"); 
-        String seleniumPass = System.getenv("SELENIUM_PASS");
-        String seleniumHost = System.getenv("SELENIUM_HOST"); 
-        
-        if (seleniumUser == null || seleniumPass == null || seleniumHost == null) {
-            throw new IllegalArgumentException("Grid credentials are not set in environment variables.");
-        }
-        
-        String gridUrl = String.format("https://%s:%s@%s/wd/hub", seleniumUser, seleniumPass, seleniumHost);
-        return new RemoteWebDriver(new URL(gridUrl), options);
-    }
-}
-```
-
-> [!NOTE]
-> Устаревшая реализация на базе Aerokube Selenoid + GGR перенесена в директорию `legacy_selenoid`. Рекомендуется использовать текущую конфигурацию Grid 4 для всех новых проектов.
----
-
 ## Обновление инфраструктуры
 
 Если вы внесли изменения в файлы `docker-compose.yml`, `config.toml` или другие настройки Grid, вам не нужно запускать полный процесс инициализации сервера. Используйте быстрый плейбук для обновления конфигурации (запускается от пользователя `deployer`):
@@ -90,3 +43,44 @@ public class BrowserFactory {
 ansible-playbook -i "IP_ВАШЕГО_СЕРВЕРА," -u deployer ansible/update_grid.yml
 ```
 Ansible скопирует измененные файлы на сервер и перезапустит контейнеры с новой конфигурацией.
+
+---
+
+## Запуск автотестов
+
+В проекте реализованы 2 вида проверок:
+
+### 1. Инфраструктурные тесты (Local Testcontainers)
+Проверяют работоспособность самого Ansible-плейбука на чистых образах Ubuntu 22.04 и 24.04 внутри локального Docker. Запускаются автоматически в GitHub Actions при каждом пуше.
+
+Для локального запуска (требуется локальный Docker и Maven):
+```bash
+mvn test -Dtest="infra.*"
+```
+
+### 2. UI-тесты на удаленном сервере (RemoteGridTest)
+Демонстрируют подключение к реальному Selenium Grid серверу с использованием Basic Auth. 
+
+**Локальный запуск (безопасно):**
+Создайте в корне проекта файл `.env.properties` (он добавлен в `.gitignore`, поэтому пароли не попадут в репозиторий):
+```properties
+GRID_USER=admin
+GRID_PASS=ваш_супер_пароль
+GRID_DOMAIN=selenium.ваш-домен.com
+```
+Запуск:
+```bash
+mvn test -Dtest="ui.RemoteGridTest"
+```
+
+**Запуск через GitHub Actions:**
+В репозитории настроен ручной запуск тестов (`Run Remote UI Tests`). 
+Для его работы добавьте следующие секреты в настройках репозитория GitHub (`Settings -> Secrets and variables -> Actions -> New repository secret`):
+* `GRID_USER`
+* `GRID_PASS`
+* `GRID_DOMAIN`
+
+После этого вы сможете запускать тесты на вашем сервере нажатием кнопки во вкладке `Actions`.
+
+> [!WARNING]
+> Никогда не коммитьте логины и пароли в исходный код (даже для тестовых контуров). Секретные данные должны передаваться исключительно через переменные окружения ОС на агенте сборки или через локальный `.env.properties`.
