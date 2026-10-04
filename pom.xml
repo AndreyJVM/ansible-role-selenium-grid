@@ -17,7 +17,6 @@
         <testcontainers.version>1.20.6</testcontainers.version>
         <logback-classic.version>1.4.14</logback-classic.version>
         <maven-surefire-plugin.version>3.2.5</maven-surefire-plugin.version>
-        <selenium.version>4.20.0</selenium.version>
     </properties>
 
     <dependencies>
@@ -43,18 +42,11 @@
             <scope>test</scope>
         </dependency>
 
-        <!-- SLF4J / Logback -->
+        <!-- SLF4J / Logback for Testcontainers logging -->
         <dependency>
             <groupId>ch.qos.logback</groupId>
             <artifactId>logback-classic</artifactId>
             <version>${logback-classic.version}</version>
-            <scope>test</scope>
-        </dependency>
-    
-        <dependency>
-            <groupId>org.seleniumhq.selenium</groupId>
-            <artifactId>selenium-java</artifactId>
-            <version>${selenium.version}</version>
             <scope>test</scope>
         </dependency>
     </dependencies>
@@ -70,4 +62,3 @@
         </plugins>
     </build>
 </project>
-
