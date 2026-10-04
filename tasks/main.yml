@@ -1,13 +1,13 @@
 ---
     - name: Update APT cache
-      apt:
+      ansible.builtin.apt:
         update_cache: yes
         cache_valid_time: 3600
       environment:
         DEBIAN_FRONTEND: noninteractive
 
     - name: Install base utilities and security tools
-      apt:
+      ansible.builtin.apt:
         name:
           - sudo
           - curl
@@ -28,69 +28,69 @@
         DEBIAN_FRONTEND: noninteractive
 
     - name: Set timezone
-      timezone:
-        name: "{{ timezone }}"
+      community.general.timezone:
+        name: "{{ selenium_grid_timezone }}"
       # Внутри Docker-контейнеров нет аппаратных часов (hwclock),
       # поэтому этот шаг может упасть. На реальном VDS всё будет ок.
       ignore_errors: yes
 
     - name: Ensure Chrony is running
-      service:
+      ansible.builtin.service:
         name: chrony
         state: started
         enabled: yes
 
     - name: Create service user
-      user:
-        name: "{{ deploy_user }}"
+      ansible.builtin.user:
+        name: "{{ selenium_grid_deploy_user }}"
         shell: /bin/bash
         groups: sudo
         append: yes
         create_home: yes
 
     - name: Set passwordless sudo for service user
-      copy:
-        dest: "/etc/sudoers.d/{{ deploy_user }}"
-        content: "{{ deploy_user }} ALL=(ALL) NOPASSWD:ALL"
+      ansible.builtin.copy:
+        dest: "/etc/sudoers.d/{{ selenium_grid_deploy_user }}"
+        content: "{{ selenium_grid_deploy_user }} ALL=(ALL) NOPASSWD:ALL"
         mode: '0440'
 
     - name: Ensure .ssh directory exists for deploy user
-      file:
-        path: "/home/{{ deploy_user }}/.ssh"
+      ansible.builtin.file:
+        path: "/home/{{ selenium_grid_deploy_user }}/.ssh"
         state: directory
-        owner: "{{ deploy_user }}"
-        group: "{{ deploy_user }}"
+        owner: "{{ selenium_grid_deploy_user }}"
+        group: "{{ selenium_grid_deploy_user }}"
         mode: '0700'
 
     - name: Copy authorized_keys from root to deploy user
-      copy:
+      ansible.builtin.copy:
         src: /root/.ssh/authorized_keys
-        dest: "/home/{{ deploy_user }}/.ssh/authorized_keys"
-        owner: "{{ deploy_user }}"
-        group: "{{ deploy_user }}"
+        dest: "/home/{{ selenium_grid_deploy_user }}/.ssh/authorized_keys"
+        owner: "{{ selenium_grid_deploy_user }}"
+        group: "{{ selenium_grid_deploy_user }}"
         mode: '0600'
         remote_src: yes
       ignore_errors: yes
 
     - name: Ensure Docker keyring directory exists
-      file:
+      ansible.builtin.file:
         path: /etc/apt/keyrings
         state: directory
         mode: '0755'
 
     - name: Add Docker GPG key
-      get_url:
-        url: https://download.docker.com/linux/ubuntu/gpg
+      ansible.builtin.get_url:
+        url: https://download.docker.com/linux/{{ ansible_distribution | lower }}/gpg
         dest: /etc/apt/keyrings/docker.asc
         mode: '0644'
 
     - name: Add Docker APT repository
-      apt_repository:
-        repo: "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+      ansible.builtin.apt_repository:
+        repo: "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/{{ ansible_distribution | lower }} {{ ansible_distribution_release }} stable"
         state: present
 
     - name: Install Docker Engine
-      apt:
+      ansible.builtin.apt:
         name:
           - docker-ce
           - docker-ce-cli
@@ -103,45 +103,45 @@
         DEBIAN_FRONTEND: noninteractive
 
     - name: Add deploy user to docker group
-      user:
-        name: "{{ deploy_user }}"
+      ansible.builtin.user:
+        name: "{{ selenium_grid_deploy_user }}"
         groups: docker
         append: yes
 
     - name: Configure UFW - Default deny incoming
-      ufw:
+      community.general.ufw:
         default: deny
         direction: incoming
 
     - name: Configure UFW - Default allow outgoing
-      ufw:
+      community.general.ufw:
         default: allow
         direction: outgoing
 
     - name: Allow SSH in UFW
-      ufw:
+      community.general.ufw:
         rule: allow
-        port: "{{ ssh_port }}"
+        port: "{{ selenium_grid_ssh_port }}"
         proto: tcp
 
     - name: Allow HTTP in UFW
-      ufw:
+      community.general.ufw:
         rule: allow
         port: "80"
         proto: tcp
 
     - name: Allow HTTPS in UFW
-      ufw:
+      community.general.ufw:
         rule: allow
         port: "443"
         proto: tcp
 
     - name: Enable UFW
-      ufw:
+      community.general.ufw:
         state: enabled
 
     - name: Ensure Fail2Ban is running
-      service:
+      ansible.builtin.service:
         name: fail2ban
         state: started
         enabled: yes
@@ -150,64 +150,65 @@
       ignore_errors: yes
 
     - name: Disable Root Login over SSH
-      lineinfile:
+      ansible.builtin.lineinfile:
         path: /etc/ssh/sshd_config
         regexp: '^#?PermitRootLogin'
         line: 'PermitRootLogin no'
       notify: restart sshd
 
     - name: Disable Password Authentication over SSH
-      lineinfile:
+      ansible.builtin.lineinfile:
         path: /etc/ssh/sshd_config
         regexp: '^#?PasswordAuthentication'
         line: 'PasswordAuthentication no'
       notify: restart sshd
 
     - name: Set Custom SSH Port
-      lineinfile:
+      ansible.builtin.lineinfile:
         path: /etc/ssh/sshd_config
         regexp: '^#?Port'
-        line: "Port {{ ssh_port }}"
+        line: "Port {{ selenium_grid_ssh_port }}"
       notify: restart sshd
 
     - name: Create project directory
-      file:
+      ansible.builtin.file:
         path: /opt/ui-tests-infra
         state: directory
-        owner: "{{ deploy_user }}"
-        group: "{{ deploy_user }}"
+        owner: "{{ selenium_grid_deploy_user }}"
+        group: "{{ selenium_grid_deploy_user }}"
         mode: '0755'
 
     - name: Generate htpasswd hash for basic auth
-      shell: >
+      ansible.builtin.shell: >
         htpasswd -nb {{ basic_user }} '{{ basic_password }}' | sed -e 's/\$/$$/g'
       register: htpasswd_hash
       changed_when: false
+      no_log: true
 
     - name: Copy Grid configuration
-      copy:
+      ansible.builtin.copy:
         src: selenium_grid_4/
         dest: /opt/ui-tests-infra/
-        owner: "{{ deploy_user }}"
-        group: "{{ deploy_user }}"
+        owner: "{{ selenium_grid_deploy_user }}"
+        group: "{{ selenium_grid_deploy_user }}"
 
     - name: Ensure proper ownership of project directory
-      file:
+      ansible.builtin.file:
         path: /opt/ui-tests-infra
-        owner: "{{ deploy_user }}"
-        group: "{{ deploy_user }}"
+        owner: "{{ selenium_grid_deploy_user }}"
+        group: "{{ selenium_grid_deploy_user }}"
         recurse: yes
 
     - name: Template .env file
-      template:
+      ansible.builtin.template:
         src: env.j2
         dest: /opt/ui-tests-infra/.env
-        owner: "{{ deploy_user }}"
-        group: "{{ deploy_user }}"
+        owner: "{{ selenium_grid_deploy_user }}"
+        group: "{{ selenium_grid_deploy_user }}"
         mode: '0600'
 
     - name: Start Docker Compose services
-      shell: docker compose -f docker-compose.yml up -d
+      ansible.builtin.shell: docker compose -f docker-compose.yml up -d
       args:
         chdir: /opt/ui-tests-infra
       ignore_errors: yes

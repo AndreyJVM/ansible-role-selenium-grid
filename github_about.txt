@@ -1,0 +1,5 @@
+﻿Description for GitHub (About section):
+"Ansible Role for deploying a highly secure and scalable Selenium Grid 4 environment via Docker Compose, backed by Traefik, Let's Encrypt SSL, and Basic Auth. Zero boilerplate."
+
+Topics/Tags to add on GitHub:
+ansible-role, selenium-grid, docker, traefik, automation, qa-infrastructure, letsencrypt, testing
