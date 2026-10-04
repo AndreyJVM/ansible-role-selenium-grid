@@ -77,19 +77,27 @@ public class RemoteGridTest {
 
     @Test
     @DisplayName("Проверка загрузки поисковика DuckDuckGo")
-    void testDuckDuckGoSearch() {
+    void testDuckDuckGoSearch() throws InterruptedException {
         driver.get("https://duckduckgo.com/");
         
         String title = driver.getTitle();
         assertTrue(title.contains("DuckDuckGo"), "Заголовок страницы должен содержать DuckDuckGo");
+
+        // Пауза 10 секунд для визуального наблюдения в веб-интерфейсе Selenium Grid UI
+        System.out.println("⏳ Сессия Chrome активна! Ожидание 10 секунд для визуальной проверки в Selenium Grid UI...");
+        Thread.sleep(10_000);
     }
 
     @Test
     @DisplayName("Проверка загрузки сайта Example.com")
-    void testExampleCom() {
+    void testExampleCom() throws InterruptedException {
         driver.get("https://example.com/");
         
         String title = driver.getTitle();
         assertEquals("Example Domain", title, "Заголовок страницы должен быть Example Domain");
+
+        // Пауза 10 секунд для визуального наблюдения в веб-интерфейсе Selenium Grid UI
+        System.out.println("⏳ Сессия Chrome активна! Ожидание 10 секунд для визуальной проверки в Selenium Grid UI...");
+        Thread.sleep(10_000);
     }
 }
