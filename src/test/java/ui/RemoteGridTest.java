@@ -19,6 +19,7 @@ import java.util.Properties;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 @DisplayName("Demo UI Tests on Remote Selenium Grid")
 public class RemoteGridTest {
@@ -44,14 +45,8 @@ public class RemoteGridTest {
         String gridDomain = System.getenv("GRID_DOMAIN") != null ? System.getenv("GRID_DOMAIN") : props.getProperty("GRID_DOMAIN");
 
         if (gridUser == null || gridPass == null || gridDomain == null) {
-            throw new IllegalStateException(
-                    "Credentials not found!\n" +
-                    "Create a file named '.env.properties' in the project root with the following content:\n" +
-                    "GRID_USER=admin\n" +
-                    "GRID_PASS=superpass\n" +
-                    "GRID_DOMAIN=selenium.my-domain.com\n" +
-                    "(This file is ignored by Git and protects your secrets from terminal history)"
-            );
+            System.err.println("Credentials not found! Skipping UI tests in this environment.");
+            assumeTrue(false, "Credentials not found! Skipping UI tests. Create '.env.properties' to run them locally.");
         }
 
         // 3. Формируем URL для Basic Auth

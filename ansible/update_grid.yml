@@ -13,6 +13,11 @@
         owner: "{{ deploy_user }}"
         group: "{{ deploy_user }}"
 
+    - name: Remove unnecessary template files from server
+      file:
+        path: /opt/ui-tests-infra/.env.example
+        state: absent
+
     - name: Ensure proper ownership of project directory
       file:
         path: /opt/ui-tests-infra
