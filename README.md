@@ -35,31 +35,52 @@
 - [x] **Настроенный DNS:** В панели управления вашим доменом создана `A`-запись, которая указывает (например, `selenium.my-domain.com`) на публичный IP-адрес этого VDS. *Дождитесь обновления DNS, иначе Let's Encrypt не сможет выпустить сертификат!*
 - [x] **Аппаратные ресурсы:** Минимум 4 vCPU и 8 ГБ RAM (для запуска хаба и 3-4 параллельных браузеров).
 
-### Шаг 2. Развертывание (Ansible)
+### Шаг 2. Использование Ansible Role
 
-Развертывание производится **только через Ansible** с хоста, с которого копировался открытый SSH-ключ при создании сервера. 
-Не используйте CI/CD для деплоя инфраструктуры - пайплайны предназначены только для запуска интеграционных тестов.
+Установите роль из Ansible Galaxy:
+```bash
+ansible-galaxy install AndreyJVM.selenium_grid_secure
+```
 
-1. Запустите Playbook с вашего компьютера (должен быть установлен `ansible`):
-   ```bash
-   ansible-playbook -i "IP_ВАШЕГО_СЕРВЕРА," -u root ansible/setup_vds.yml
-   ```
-   Ansible **безопасно запросит** у вас ввод необходимых данных (логин, пароль, домен и email). Введенный пароль не будет отображаться на экране и не сохранится в истории терминала.
+Создайте у себя файл `playbook.yml`:
+```yaml
+---
+- hosts: all
+  become: yes
+  vars_prompt:
+    - name: basic_user
+      prompt: "Enter Basic Auth Username for Selenium Grid"
+      default: "admin"
+      private: no
+    - name: basic_password
+      prompt: "Enter Basic Auth Password"
+      private: yes
+    - name: domain_name
+      prompt: "Enter Domain Name (e.g. selenium.my-domain.com)"
+      private: no
+    - name: acme_email
+      prompt: "Enter Email for Let's Encrypt SSL"
+      private: no
 
-   *(Для автоматизированного запуска без интерактивного ввода можно передать переменные через `-e "basic_user=admin basic_password=pass domain_name=... acme_email=..."`)*
+  roles:
+    - AndreyJVM.selenium_grid_secure
+```
 
-   **Готово!** Ansible сам настроит сервер, скопирует все нужные файлы, сгенерирует `.env` файл с хэшем пароля для Basic Auth и поднимет Docker Compose.
+Запустите установку:
+```bash
+ansible-playbook -i "IP_ВАШЕГО_СЕРВЕРА," -u root playbook.yml
+```
+**Готово!** Сервер настроен, закрыт файрволом, и на нём поднят защищенный Selenium Grid.
 
 ---
 
 ## Обновление инфраструктуры
 
-Если вы внесли изменения в файлы `docker-compose.yml`, `config.toml` или другие настройки Grid, вам не нужно запускать полный процесс инициализации сервера. Используйте быстрый плейбук для обновления конфигурации (запускается от пользователя `deployer`):
+Для быстрого обновления конфигурации (без переустановки системных пакетов) используйте тег `update` или запускайте роль напрямую:
 
 ```bash
-ansible-playbook -i "IP_ВАШЕГО_СЕРВЕРА," -u deployer ansible/update_grid.yml
+ansible-playbook -i "IP_ВАШЕГО_СЕРВЕРА," -u deployer playbook.yml --tags update
 ```
-Ansible скопирует измененные файлы на сервер и перезапустит контейнеры с новой конфигурацией.
 
 ---
 
