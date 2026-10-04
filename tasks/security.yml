@@ -18,13 +18,13 @@
 - name: Allow HTTP in UFW
   community.general.ufw:
     rule: allow
-    port: "80"
+    port: "{{ selenium_grid_http_port }}"
     proto: tcp
 
 - name: Allow HTTPS in UFW
   community.general.ufw:
     rule: allow
-    port: "443"
+    port: "{{ selenium_grid_https_port }}"
     proto: tcp
 
 - name: Enable UFW

@@ -1,3 +1,6 @@
 ﻿selenium_grid_deploy_user: "deployer"
 selenium_grid_timezone: "UTC"
 selenium_grid_ssh_port: 22
+selenium_grid_project_path: "/opt/ui-tests-infra"
+selenium_grid_http_port: "80"
+selenium_grid_https_port: "443"
