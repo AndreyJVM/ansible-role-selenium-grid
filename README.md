@@ -1,5 +1,8 @@
 # UI Tests Infrastructure
 
+> [!IMPORTANT]
+> **Безопасность превыше всего.** Многие репозитории предлагают быстрые скрипты для развертывания Selenium Grid. Но если вам важна реальная безопасность (закрытые порты, отсутствие root-доступа, обязательная Basic Auth, и автоматические сертификаты Let's Encrypt для HTTPS) — **вы по адресу**. Вся инфраструктура разворачивается автоматически, не оставляя дыр для ботов и майнеров.
+
 Репозиторий содержит инфраструктурные скрипты, Ansible-плейбуки и файлы конфигурации для развертывания масштабируемой среды Selenium Grid 4 на Linux VDS.
 
 ## Основные компоненты
@@ -49,6 +52,55 @@ ansible-playbook -i "IP_ВАШЕГО_СЕРВЕРА," -u deployer ansible/update
 Ansible скопирует измененные файлы на сервер и перезапустит контейнеры с новой конфигурацией.
 
 ---
+
+
+## Интеграция в ваши проекты (WebDriver Factory)
+
+Вам не нужно копировать этот инфраструктурный проект в свои репозитории с автотестами. Инфраструктура живет своей жизнью, а в вашем проекте на Java (с использованием Selenium или Selenide) достаточно реализовать паттерн Фабрики для управления WebDriver.
+
+Пример `WebDriverFactory` на Java:
+
+```java
+import org.openqa.selenium.WebDriver;
+import org.openqa.selenium.chrome.ChromeDriver;
+import org.openqa.selenium.chrome.ChromeOptions;
+import org.openqa.selenium.remote.RemoteWebDriver;
+import java.net.URI;
+
+public class WebDriverFactory {
+    public static WebDriver createDriver() {
+        // Управляем запуском через переменную RUN_ON_GRID
+        boolean runOnGrid = Boolean.parseBoolean(System.getProperty("RUN_ON_GRID", "false"));
+
+        if (runOnGrid) {
+            // Подключаемся к вашей защищенной инфраструктуре на VDS
+            ChromeOptions options = new ChromeOptions();
+            String gridUrl = String.format("https://%s:%s@%s/wd/hub", 
+                    System.getenv("GRID_USER"), 
+                    System.getenv("GRID_PASS"), 
+                    System.getenv("GRID_DOMAIN"));
+            try {
+                return new RemoteWebDriver(URI.create(gridUrl).toURL(), options);
+            } catch (Exception e) { 
+                throw new RuntimeException("Failed to connect to Remote Grid", e); 
+            }
+        } else {
+            // Локальный запуск на компьютере разработчика (дебаг)
+            return new ChromeDriver(); 
+        }
+    }
+}
+```
+
+Запуск тестов локально:
+```bash
+mvn test
+```
+
+Запуск тестов в CI/CD контуре на удаленном сервере:
+```bash
+mvn test -DRUN_ON_GRID=true
+```
 
 ## Запуск автотестов
 
