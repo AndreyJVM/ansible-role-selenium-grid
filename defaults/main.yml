@@ -4,3 +4,6 @@ selenium_grid_ssh_port: 22
 selenium_grid_project_path: "/opt/ui-tests-infra"
 selenium_grid_http_port: "80"
 selenium_grid_https_port: "443"
+
+selenium_grid_version: "4.20.0"
+traefik_version: "v3.6"

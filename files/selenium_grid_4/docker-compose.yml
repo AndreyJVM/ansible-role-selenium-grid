@@ -1,8 +1,6 @@
-version: '3.8'
-
 services:
   traefik:
-    image: traefik:v3.6
+    image: traefik:${TRAEFIK_VERSION:-v3.6}
     container_name: traefik
     command:
       - "--api.insecure=false"
@@ -16,10 +14,10 @@ services:
       - "--entrypoints.web.http.redirections.entryPoint.scheme=https"
       
       - "--certificatesresolvers.myresolver.acme.tlschallenge=true"
-      - "--certificatesresolvers.myresolver.acme.email=${ACME_EMAIL}"
+      - "--certificatesresolvers.myresolver.acme.email=${ACME_EMAIL:-admin@localhost.com}"
       - "--certificatesresolvers.myresolver.acme.storage=/letsencrypt/acme.json"
     environment:
-      - DOCKER_API_VERSION=1.41
+      - DOCKER_API_VERSION=${DOCKER_API_VERSION:-1.41}
     ports:
       - "80:80"
       - "443:443"
@@ -31,15 +29,15 @@ services:
       - grid_network
 
   selenium-hub:
-    image: selenium/hub:4.20.0
+    image: selenium/hub:${SELENIUM_VERSION:-4.20.0}
     container_name: selenium-hub
     environment:
-      - SE_EVENT_BUS_THREADS=16
-    ports:
-      - "4444:4444" 
+      - SE_EVENT_BUS_THREADS=${SE_EVENT_BUS_THREADS:-16}
+    # ПОРТ 4444 УБРАН ОТСЮДА В ЦЕЛЯХ БЕЗОПАСНОСТИ!
+    # Доступ к Grid должен быть только через Traefik (https + basic auth).
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.selenium.rule=Host(`${DOMAIN_NAME}`)"
+      - "traefik.http.routers.selenium.rule=Host(`${DOMAIN_NAME:-localhost}`)"
       - "traefik.http.routers.selenium.entrypoints=websecure"
       - "traefik.http.routers.selenium.tls.certresolver=myresolver"
       - "traefik.http.services.selenium.loadbalancer.server.port=4444"
@@ -49,18 +47,24 @@ services:
     restart: unless-stopped
     networks:
       - grid_network
+    healthcheck:
+      test: ["CMD", "curl", "-s", "http://localhost:4444/status"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
 
   node-docker:
-    image: selenium/node-docker:4.20.0
+    image: selenium/node-docker:${SELENIUM_VERSION:-4.20.0}
     container_name: node-docker
     depends_on:
-      - selenium-hub
+      selenium-hub:
+        condition: service_healthy
     environment:
       - SE_EVENT_BUS_HOST=selenium-hub
       - SE_EVENT_BUS_PUBLISH_PORT=4442
       - SE_EVENT_BUS_SUBSCRIBE_PORT=4443
       - SE_NODE_DOCKER_CONFIG_FILENAME=config.toml
-      - DOCKER_API_VERSION=1.41
+      - DOCKER_API_VERSION=${DOCKER_API_VERSION:-1.41}
     volumes:
       - ./config.toml:/opt/selenium/config.toml:ro
       - /var/run/docker.sock:/var/run/docker.sock
