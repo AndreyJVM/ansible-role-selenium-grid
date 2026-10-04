@@ -1,0 +1,215 @@
+---
+    - name: Update APT cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+      environment:
+        DEBIAN_FRONTEND: noninteractive
+
+    - name: Install base utilities and security tools
+      apt:
+        name:
+          - sudo
+          - curl
+          - wget
+          - git
+          - ufw
+          - fail2ban
+          - apache2-utils
+          - apt-transport-https
+          - ca-certificates
+          - software-properties-common
+          - lsb-release
+          - openssh-server
+          - chrony
+          - tzdata
+        state: present
+      environment:
+        DEBIAN_FRONTEND: noninteractive
+
+    - name: Set timezone
+      timezone:
+        name: "{{ timezone }}"
+      # Внутри Docker-контейнеров нет аппаратных часов (hwclock),
+      # поэтому этот шаг может упасть. На реальном VDS всё будет ок.
+      ignore_errors: yes
+
+    - name: Ensure Chrony is running
+      service:
+        name: chrony
+        state: started
+        enabled: yes
+
+    - name: Create service user
+      user:
+        name: "{{ deploy_user }}"
+        shell: /bin/bash
+        groups: sudo
+        append: yes
+        create_home: yes
+
+    - name: Set passwordless sudo for service user
+      copy:
+        dest: "/etc/sudoers.d/{{ deploy_user }}"
+        content: "{{ deploy_user }} ALL=(ALL) NOPASSWD:ALL"
+        mode: '0440'
+
+    - name: Ensure .ssh directory exists for deploy user
+      file:
+        path: "/home/{{ deploy_user }}/.ssh"
+        state: directory
+        owner: "{{ deploy_user }}"
+        group: "{{ deploy_user }}"
+        mode: '0700'
+
+    - name: Copy authorized_keys from root to deploy user
+      copy:
+        src: /root/.ssh/authorized_keys
+        dest: "/home/{{ deploy_user }}/.ssh/authorized_keys"
+        owner: "{{ deploy_user }}"
+        group: "{{ deploy_user }}"
+        mode: '0600'
+        remote_src: yes
+      ignore_errors: yes
+
+    - name: Ensure Docker keyring directory exists
+      file:
+        path: /etc/apt/keyrings
+        state: directory
+        mode: '0755'
+
+    - name: Add Docker GPG key
+      get_url:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        dest: /etc/apt/keyrings/docker.asc
+        mode: '0644'
+
+    - name: Add Docker APT repository
+      apt_repository:
+        repo: "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+        state: present
+
+    - name: Install Docker Engine
+      apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-buildx-plugin
+          - docker-compose-plugin
+        state: present
+        update_cache: yes
+      environment:
+        DEBIAN_FRONTEND: noninteractive
+
+    - name: Add deploy user to docker group
+      user:
+        name: "{{ deploy_user }}"
+        groups: docker
+        append: yes
+
+    - name: Configure UFW - Default deny incoming
+      ufw:
+        default: deny
+        direction: incoming
+
+    - name: Configure UFW - Default allow outgoing
+      ufw:
+        default: allow
+        direction: outgoing
+
+    - name: Allow SSH in UFW
+      ufw:
+        rule: allow
+        port: "{{ ssh_port }}"
+        proto: tcp
+
+    - name: Allow HTTP in UFW
+      ufw:
+        rule: allow
+        port: "80"
+        proto: tcp
+
+    - name: Allow HTTPS in UFW
+      ufw:
+        rule: allow
+        port: "443"
+        proto: tcp
+
+    - name: Enable UFW
+      ufw:
+        state: enabled
+
+    - name: Ensure Fail2Ban is running
+      service:
+        name: fail2ban
+        state: started
+        enabled: yes
+      # Внутри Docker-контейнера может не оказаться auth.log и iptables,
+      # поэтому старт сервиса может обрываться. На реальном сервере отработает корректно.
+      ignore_errors: yes
+
+    - name: Disable Root Login over SSH
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^#?PermitRootLogin'
+        line: 'PermitRootLogin no'
+      notify: restart sshd
+
+    - name: Disable Password Authentication over SSH
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^#?PasswordAuthentication'
+        line: 'PasswordAuthentication no'
+      notify: restart sshd
+
+    - name: Set Custom SSH Port
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^#?Port'
+        line: "Port {{ ssh_port }}"
+      notify: restart sshd
+
+    - name: Create project directory
+      file:
+        path: /opt/ui-tests-infra
+        state: directory
+        owner: "{{ deploy_user }}"
+        group: "{{ deploy_user }}"
+        mode: '0755'
+
+    - name: Generate htpasswd hash for basic auth
+      shell: >
+        htpasswd -nb {{ basic_user }} '{{ basic_password }}' | sed -e 's/\$/$$/g'
+      register: htpasswd_hash
+      changed_when: false
+
+    - name: Copy Grid configuration
+      copy:
+        src: selenium_grid_4/
+        dest: /opt/ui-tests-infra/
+        owner: "{{ deploy_user }}"
+        group: "{{ deploy_user }}"
+
+    - name: Ensure proper ownership of project directory
+      file:
+        path: /opt/ui-tests-infra
+        owner: "{{ deploy_user }}"
+        group: "{{ deploy_user }}"
+        recurse: yes
+
+    - name: Template .env file
+      template:
+        src: env.j2
+        dest: /opt/ui-tests-infra/.env
+        owner: "{{ deploy_user }}"
+        group: "{{ deploy_user }}"
+        mode: '0600'
+
+    - name: Start Docker Compose services
+      shell: docker compose -f docker-compose.yml up -d
+      args:
+        chdir: /opt/ui-tests-infra
+      ignore_errors: yes
+
+

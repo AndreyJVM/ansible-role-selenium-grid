@@ -1,0 +1,22 @@
+﻿galaxy_info:
+  author: AndreyJVM
+  description: Secure deployment of Selenium Grid 4 with Traefik, Let's Encrypt, and Basic Auth.
+  company: ""
+  license: MIT
+  min_ansible_version: 2.9
+  platforms:
+    - name: Ubuntu
+      versions:
+        - focal
+        - jammy
+        - noble
+    - name: Debian
+      versions:
+        - bookworm
+  galaxy_tags:
+    - selenium
+    - testing
+    - docker
+    - traefik
+    - qa
+dependencies: []
