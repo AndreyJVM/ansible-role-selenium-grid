@@ -1,4 +1,4 @@
-﻿package ui;
+package ui;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -9,6 +9,7 @@ import org.openqa.selenium.chrome.ChromeOptions;
 import org.openqa.selenium.remote.RemoteWebDriver;
 
 import java.io.InputStream;
+import java.net.URI;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -63,7 +64,7 @@ public class RemoteGridTest {
         options.addArguments("--disable-dev-shm-usage");
 
         // 5. Подключаемся к Grid
-        this.driver = new RemoteWebDriver(new URL(gridUrl), options);
+        this.driver = new RemoteWebDriver(URI.create(gridUrl).toURL(), options);
         this.driver.manage().timeouts().implicitlyWait(Duration.ofSeconds(10));
     }
 
