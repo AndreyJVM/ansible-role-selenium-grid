@@ -1,5 +1,6 @@
 ﻿galaxy_info:
   author: AndreyJVM
+  role_name: selenium_grid_secure
   description: Secure deployment of Selenium Grid 4 with Traefik, Let's Encrypt, and Basic Auth.
   company: ""
   license: MIT

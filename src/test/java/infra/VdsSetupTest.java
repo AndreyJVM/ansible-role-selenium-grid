@@ -56,8 +56,8 @@ public class VdsSetupTest {
             linuxContainer = new GenericContainer<>(cachedImage)
                     .withPrivilegedMode(true)
                     .withCopyFileToContainer(
-                            MountableFile.forHostPath("ansible"),
-                            "/tmp/ansible"
+                            MountableFile.forHostPath("."),
+                            "/tmp/ansible-role-selenium-grid"
                     )
                     .withCommand("bash", "-c",
                             // 1. Создаем заглушку для systemctl
@@ -68,7 +68,7 @@ public class VdsSetupTest {
                             "mkdir -p /root/.ssh && echo 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5 test-key' > /root/.ssh/authorized_keys && " +
                             
                             // 3. Запускаем Ansible Playbook локально
-                            "ansible-playbook -c local -i localhost, -e \"basic_user=admin basic_password=pass domain_name=test.local acme_email=test@test.local\" /tmp/ansible/setup_vds.yml && " +
+                            "ansible-playbook -c local -i localhost, -e \"basic_user=admin basic_password=pass domain_name=test.local acme_email=test@test.local\" /tmp/ansible-role-selenium-grid/tests/test.yml && " +
                             
                             "echo 'SETUP_COMPLETE' && " +
                             "sleep infinity"

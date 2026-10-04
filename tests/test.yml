@@ -1,6 +1,7 @@
----
-- name: Initialize and secure VDS
-  hosts: all
+﻿---
+- name: Test playbook for the role
+  hosts: localhost
+  connection: local
   become: yes
 
   vars_prompt:
@@ -8,18 +9,15 @@
       prompt: "Enter Basic Auth Username for Selenium Grid"
       default: "admin"
       private: no
-
     - name: basic_password
       prompt: "Enter Basic Auth Password"
       private: yes
-
     - name: domain_name
       prompt: "Enter Domain Name (e.g. selenium.my-domain.com)"
       private: no
-
     - name: acme_email
       prompt: "Enter Email for Let's Encrypt SSL"
       private: no
 
   roles:
-    - selenium_grid
+    - role: ansible-role-selenium-grid
