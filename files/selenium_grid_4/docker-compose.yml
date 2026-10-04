@@ -33,8 +33,6 @@ services:
     container_name: selenium-hub
     environment:
       - SE_EVENT_BUS_THREADS=${SE_EVENT_BUS_THREADS:-16}
-    # ПОРТ 4444 УБРАН ОТСЮДА В ЦЕЛЯХ БЕЗОПАСНОСТИ!
-    # Доступ к Grid должен быть только через Traefik (https + basic auth).
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.selenium.rule=Host(`${DOMAIN_NAME:-localhost}`)"
