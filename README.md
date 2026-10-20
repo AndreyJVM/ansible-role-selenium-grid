@@ -104,6 +104,29 @@ Use the `update` tag to quickly push configuration changes and restart the conta
 ansible-playbook -i "192.168.1.100," -u deployer deploy-grid.yml --tags update
 ```
 
+## Proxmox VE: create a VM and deploy the Grid
+
+An example end-to-end playbook is available in [`examples/proxmox`](examples/proxmox). It clones an existing Ubuntu Cloud-Init template, configures CPU, memory, networking and an SSH key through the Proxmox API, starts the VM, waits for SSH, and then applies this role.
+
+The example uses the current `community.proxmox` collection and requires Ansible Core 2.17 or newer, plus Python packages `proxmoxer` and `requests` on the control machine. The Proxmox template must already exist, include a Cloud-Init drive and QEMU Guest Agent, and have the `scsi0` system disk sized as needed. Reserve the configured guest IP address in your network and point the Grid's DNS name to the VM before deployment so Let's Encrypt can issue a certificate.
+
+1. Install the dependencies:
+   ```bash
+   ansible-galaxy collection install -r examples/proxmox/requirements.yml
+   python3 -m pip install 'proxmoxer>=2.3' requests
+   ```
+2. Copy `examples/proxmox/vars.yml.example` to `examples/proxmox/vars.yml`, then set your API endpoint, node, template, storage, bridge, reserved VM address, gateway and SSH public key path. Encrypt the file because it contains an API token:
+   ```bash
+   cp examples/proxmox/vars.yml.example examples/proxmox/vars.yml
+   ansible-vault encrypt examples/proxmox/vars.yml
+   ```
+3. Run the deployment:
+   ```bash
+   ansible-playbook -i localhost, -c local examples/proxmox/deploy.yml --ask-vault-pass
+   ```
+
+The sample VM ID (`901`) and IP address are examples; choose unused values for your Proxmox host and LAN. The API token needs permission to clone and configure VMs, allocate storage, and start the VM. The sample disables certificate validation for a typical self-signed home Proxmox certificate; set it to `true` when your API certificate is trusted.
+
 ## Integration with Java (WebDriver Factory)
 
 You do not need to copy this repository into your test automation projects. This infrastructure lives independently. In your Java project, simply implement a Factory pattern to manage your WebDriver.
