@@ -1,5 +1,6 @@
 # Selenium Grid 4 Secure Deployment Role
 
+[![CI](https://github.com/AndreyJVM/ansible-role-selenium-grid/actions/workflows/ci.yml/badge.svg)](https://github.com/AndreyJVM/ansible-role-selenium-grid/actions/workflows/ci.yml)
 [![Ansible Galaxy](https://img.shields.io/badge/Ansible%20Galaxy-AndreyJVM.selenium__grid__secure-blue)](https://galaxy.ansible.com/AndreyJVM/selenium_grid_secure)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
@@ -10,10 +11,16 @@ An Ansible Role that automates the deployment of a highly scalable **Selenium Gr
 
 ## Table of Contents
 - [Features](#features)
+- [Architecture](#architecture)
 - [Requirements](#requirements)
 - [Quick Start (Copy-Paste)](#quick-start-copy-paste)
+- [Verification](#verification)
+- [Role Variables](#role-variables)
 - [Advanced Configuration](#advanced-configuration)
 - [Updating the Grid](#updating-the-grid)
+- [Proxmox VE: Provision with Terraform](#proxmox-ve-provision-with-terraform)
+- [Selectel Cloud: Provision with Terraform](#selectel-cloud-provision-with-terraform)
+- [Testing the Role (Testcontainers & CI)](#testing-the-role-testcontainers--ci)
 - [Integration with Java (WebDriver Factory)](#integration-with-java-webdriver-factory)
 
 ## Features
@@ -23,6 +30,34 @@ An Ansible Role that automates the deployment of a highly scalable **Selenium Gr
 - **Let's Encrypt:** Traefik automatically generates and renews valid SSL/TLS certificates.
 - **Basic Auth:** Mandatory authentication for accessing the Grid nodes.
 - **Server Initialization:** Automatically sets up the VDS (creates a non-root `deployer` user, installs Docker, configures UFW firewall, secures SSH by disabling root login and password auth, generates `htpasswd`, and deploys the Grid).
+
+## Architecture
+
+```mermaid
+flowchart TD
+    Client["Client / CI Pipeline (Tests)"]
+    subgraph Host["Linux VDS (Hardened UFW Firewall)"]
+        subgraph Ingress["Traefik Reverse Proxy"]
+            Traefik["Traefik v3<br/>(Ports 80 / 443)"]
+            LE["Let's Encrypt ACME<br/>(Auto TLS/SSL)"]
+            Auth["Basic Auth Middleware<br/>(Hashed Credentials)"]
+        end
+        subgraph Grid["Docker Network: grid_network"]
+            Hub["Selenium Hub 4<br/>(Port 4444)"]
+            NodeDocker["Selenium Node Docker<br/>(Dynamic Browser Manager)"]
+            Chrome["Chrome Container<br/>(On-Demand)"]
+            Firefox["Firefox Container<br/>(On-Demand)"]
+        end
+    end
+
+    Client -->|"HTTPS :443 (Basic Auth)"| Traefik
+    Traefik --- LE
+    Traefik --- Auth
+    Traefik -->|"Forward Authorized Traffic"| Hub
+    Hub <--> NodeDocker
+    NodeDocker -->|"Spawns via docker.sock"| Chrome
+    NodeDocker -->|"Spawns via docker.sock"| Firefox
+```
 
 ## Requirements
 
@@ -81,17 +116,59 @@ ansible-playbook -i "192.168.1.100," -u root deploy-grid.yml
 
 **Done!** The script will ask you for the domain, email, and credentials, and then do all the magic. 
 
+## Verification
+
+Once deployment completes, verify that your Selenium Grid is operational:
+
+**1. Web Console:**
+Open `https://selenium.my-domain.com/ui` in your browser. Enter your Basic Auth credentials when prompted. You will see the Selenium Grid 4 Dashboard with ready browser nodes.
+
+**2. API Healthcheck:**
+Run a curl command to check the hub status:
+```bash
+curl -u admin:your_password https://selenium.my-domain.com/status
+```
+Expected response contains `"ready": true`.
+
+## Role Variables
+
+The following default variables are defined in [`defaults/main.yml`](defaults/main.yml) and can be overridden:
+
+| Variable | Default Value | Description |
+| :--- | :--- | :--- |
+| `selenium_grid_deploy_user` | `"deployer"` | Non-root system user created for Docker and deployments |
+| `selenium_grid_timezone` | `"UTC"` | Server system timezone |
+| `selenium_grid_ssh_port` | `22` | SSH port configured on the host |
+| `selenium_grid_project_path` | `"/opt/ui-tests-infra"` | Destination directory on the server for Grid files |
+| `selenium_grid_http_port` | `"80"` | Host HTTP port for Let's Encrypt HTTP challenge & redirect |
+| `selenium_grid_https_port` | `"443"` | Host HTTPS port for secure Selenium Grid entry |
+| `selenium_grid_version` | `"4.20.0"` | Selenium Hub and Node Docker image version |
+| `traefik_version` | `"v3.6"` | Traefik Reverse Proxy Docker image version |
+
+Required variables prompted during deployment:
+- `basic_user`: Username for Basic Authentication.
+- `basic_password`: Password for Basic Authentication (will be hashed automatically).
+- `domain_name`: Fully Qualified Domain Name (FQDN) pointing to the VDS IP.
+- `acme_email`: Contact email for Let's Encrypt SSL certificate registration.
+
 ## Advanced Configuration
 
-If you want to customize the deployment, you can add variables to your `deploy-grid.yml` file under a `vars:` section:
+If you want to customize the deployment without interactive prompts, specify variables directly in your `deploy-grid.yml`:
 
 ```yaml
+---
+- hosts: all
+  become: yes
   vars:
-    selenium_grid_project_path: "/opt/my-custom-path" # Default is /opt/ui-tests-infra
-    selenium_grid_http_port: "8080"                   # Default is 80
-    selenium_grid_https_port: "8443"                  # Default is 443
-    selenium_grid_version: "4.20.0"                   # Override Selenium version
-    traefik_version: "v3.6"                           # Override Traefik version
+    basic_user: "qa_admin"
+    basic_password: "SuperSecretPassword123!"
+    domain_name: "selenium.my-domain.com"
+    acme_email: "admin@my-domain.com"
+    selenium_grid_project_path: "/opt/custom-grid"
+    selenium_grid_version: "4.20.0"
+    traefik_version: "v3.6"
+  roles:
+    - AndreyJVM.selenium_grid_secure
 ```
 
 ## Updating the Grid
@@ -104,28 +181,72 @@ Use the `update` tag to quickly push configuration changes and restart the conta
 ansible-playbook -i "192.168.1.100," -u deployer deploy-grid.yml --tags update
 ```
 
-## Proxmox VE: create a VM and deploy the Grid
+## Proxmox VE: Provision with Terraform
 
-An example end-to-end playbook is available in [`examples/proxmox`](examples/proxmox). It clones an existing Ubuntu Cloud-Init template, configures CPU, memory, networking and an SSH key through the Proxmox API, starts the VM, waits for SSH, and then applies this role.
+An automated **Terraform** module for on-premises **Proxmox VE 7 / 8** virtualization is available in [`examples/proxmox`](examples/proxmox). It uses the modern [`bpg/proxmox`](https://registry.terraform.io/providers/bpg/proxmox/latest) provider to clone an Ubuntu Cloud-Init template, configure 4 vCPU, 8 GB RAM, 30 GB storage, network, static IP, and SSH keys, and automatically generates an Ansible inventory file.
 
-The example uses the current `community.proxmox` collection and requires Ansible Core 2.17 or newer, plus Python packages `proxmoxer` and `requests` on the control machine. The Proxmox template must already exist, include a Cloud-Init drive and QEMU Guest Agent, and have the `scsi0` system disk sized as needed. Reserve the configured guest IP address in your network and point the Grid's DNS name to the VM before deployment so Let's Encrypt can issue a certificate.
-
-1. Install the dependencies:
+1. Navigate to the directory and copy the example variables:
    ```bash
-   ansible-galaxy collection install -r examples/proxmox/requirements.yml
-   python3 -m pip install 'proxmoxer>=2.3' requests
+   cd examples/proxmox
+   cp terraform.tfvars.example terraform.tfvars
    ```
-2. Copy `examples/proxmox/vars.yml.example` to `examples/proxmox/vars.yml`, then set your API endpoint, node, template, storage, bridge, reserved VM address, gateway and SSH public key path. Encrypt the file because it contains an API token:
+2. Configure your Proxmox endpoint, API token, node, template ID, and network settings in `terraform.tfvars`.
+3. Provision the VM:
    ```bash
-   cp examples/proxmox/vars.yml.example examples/proxmox/vars.yml
-   ansible-vault encrypt examples/proxmox/vars.yml
+   terraform init
+   terraform apply
    ```
-3. Run the deployment:
+4. Deploy the Selenium Grid role using the auto-generated inventory:
    ```bash
-   ansible-playbook -i localhost, -c local examples/proxmox/deploy.yml --ask-vault-pass
+   ansible-playbook -i examples/proxmox/hosts.ini deploy-grid.yml
    ```
 
-The sample VM ID (`901`) and IP address are examples; choose unused values for your Proxmox host and LAN. The API token needs permission to clone and configure VMs, allocate storage, and start the VM. The sample disables certificate validation for a typical self-signed home Proxmox certificate; set it to `true` when your API certificate is trusted.
+For detailed instructions, see [`examples/proxmox/README.md`](examples/proxmox/README.md).
+
+## Selectel Cloud: Provision with Terraform
+
+An automated **Terraform** configuration for **Selectel Cloud Platform (VPC)** is available in [`examples/selectel`](examples/selectel). It creates a complete private VPC, router, 30 GB fast NVMe boot volume, 4 vCPU / 8 GB RAM instance (`c4m8-d0`), attaches a public Floating IP, injects your SSH key, and generates an Ansible `hosts.ini` inventory automatically.
+
+1. Install Terraform and navigate to the directory:
+   ```bash
+   cd examples/selectel
+   cp terraform.tfvars.example terraform.tfvars
+   ```
+2. Fill in your Selectel credentials in `terraform.tfvars` (Account ID, Project UUID, and Service User password).
+3. Apply the infrastructure:
+   ```bash
+   terraform init
+   terraform apply
+   ```
+4. Run deployment using the auto-generated inventory:
+   ```bash
+   ansible-playbook -i examples/selectel/hosts.ini deploy-grid.yml
+   ```
+
+For detailed options and instructions, see [`examples/selectel/README.md`](examples/selectel/README.md).
+
+## Testing the Role (Testcontainers & CI)
+
+This repository includes automated infrastructure tests based on **Testcontainers** and **JUnit 5** located in [`src/test/java/infra/VdsSetupTest.java`](src/test/java/infra/VdsSetupTest.java). The test suite spins up isolated privileged Docker containers simulating clean OS installations (Ubuntu 22.04 LTS and Ubuntu 24.04 LTS), executes the Ansible role, and validates:
+- Timezone configuration (UTC) & Chrony NTP service
+- Creation of non-root `deployer` user with `sudo` and `docker` groups
+- SSH hardening and authorized keys permissions (`0600`)
+- Docker CLI installation and service readiness
+- UFW firewall activation and rule configuration
+- Selenium Grid 4 and Traefik configuration files deployment
+
+To run the infrastructure tests locally:
+```bash
+mvn test
+```
+
+### Continuous Integration (GitHub Actions)
+
+Every push and pull request triggers [`.github/workflows/ci.yml`](.github/workflows/ci.yml) consisting of:
+1. **Linting & Syntax Check:** `yamllint` and `ansible-lint`.
+2. **Terraform Format & Validation:** `terraform fmt -check` and `terraform validate` across both `examples/proxmox` and `examples/selectel` modules.
+3. **DevSecOps Security Audit:** `aquasecurity/trivy-action` scanning configurations and filesystem for vulnerabilities.
+4. **Integration Testing:** Execution of the full Testcontainers test suite on clean Ubuntu environments.
 
 ## Integration with Java (WebDriver Factory)
 

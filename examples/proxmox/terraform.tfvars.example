@@ -1,0 +1,28 @@
+# Copy to terraform.tfvars and customize with your Proxmox credentials
+# DO NOT commit terraform.tfvars to git!
+
+proxmox_endpoint  = "https://pve.example.lan:8006/"
+proxmox_api_token = "ansible@pve!selenium=12345678-abcd-1234-abcd-1234567890ab"
+proxmox_insecure  = true # Set false if using trusted SSL certificates
+proxmox_node      = "pve"
+
+# Template & Target VM IDs
+template_vm_id    = 9000 # ID of your Cloud-Init Ubuntu template
+vm_id             = 901
+vm_name           = "selenium-grid-01"
+
+# Hardware resources
+vm_cores          = 4
+vm_memory_mb      = 8192 # 8 GB RAM recommended for multi-browser sessions
+vm_datastore_id   = "local-lvm"
+vm_disk_size_gb   = 30
+vm_bridge         = "vmbr0"
+
+# Networking
+vm_ip_cidr        = "192.168.1.90/24"
+vm_gateway        = "192.168.1.1"
+vm_dns_servers    = ["192.168.1.1", "1.1.1.1"]
+
+# Cloud-Init User & SSH Key
+vm_user           = "root"
+ssh_public_key_path = "~/.ssh/id_ed25519.pub"

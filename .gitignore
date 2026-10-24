@@ -15,3 +15,21 @@ target/
 # Python
 __pycache__/
 *.pyc
+
+# Terraform
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+crash.log
+*.tfvars
+!*.tfvars.example
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
+**/hosts.ini
+
+# Environment / AI skills
+skills/
