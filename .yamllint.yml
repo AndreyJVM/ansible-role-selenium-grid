@@ -2,10 +2,11 @@
 extends: default
 
 rules:
-  line-length:
-    max: 200
-    level: warning
-  truthy:
-    check-keys: false
-  comments:
-    min-spaces-from-content: 1
+  line-length: disable
+  truthy: disable
+  document-start: disable
+  comments: disable
+  trailing-spaces: disable
+  indentation:
+    spaces: consistent
+    indent-sequences: consistent

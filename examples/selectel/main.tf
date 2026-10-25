@@ -82,7 +82,7 @@ resource "openstack_compute_floatingip_associate_v2" "fip_assoc" {
 
 resource "local_file" "ansible_inventory" {
   content = templatefile("${path.module}/inventory.tpl", {
-    server_ip   = openstack_networking_floatingip_v2.fip.address
+    server_ip    = openstack_networking_floatingip_v2.fip.address
     ssh_key_path = pathexpand(replace(var.ssh_public_key_path, ".pub", ""))
   })
   filename = "${path.module}/hosts.ini"

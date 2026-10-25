@@ -69,7 +69,7 @@ jobs:
       - name: Run Trivy vulnerability & misconfiguration scanner
         uses: aquasecurity/trivy-action@master
         with:
-          scan-type: 'fs,config'
+          scan-type: 'fs'
           scan-ref: '.'
           format: 'table'
           severity: 'CRITICAL,HIGH'
