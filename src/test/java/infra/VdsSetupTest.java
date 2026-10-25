@@ -1,10 +1,8 @@
 package infra;
 
 import org.junit.jupiter.api.*;
-import org.slf4j.LoggerFactory;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.Container.ExecResult;
-import org.testcontainers.containers.output.Slf4jLogConsumer;
 import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.images.builder.ImageFromDockerfile;
 import org.testcontainers.utility.MountableFile;
@@ -43,7 +41,7 @@ public class VdsSetupTest {
             System.out.println("🚀 Подготовка базового образа (с кэшированием) для: " + getOsImage());
             System.out.println("=======================================================");
 
-            // Используем --no-install-recommends для радикального ускорения установки Ansible
+            // Используем --no-install-recommends для ускорения установки Ansible
             ImageFromDockerfile cachedImage = new ImageFromDockerfile()
                     .withDockerfileFromBuilder(builder -> builder
                             .from(getOsImage())
@@ -73,9 +71,9 @@ public class VdsSetupTest {
                             "echo 'SETUP_COMPLETE' && " +
                             "sleep infinity"
                     )
-                    .withLogConsumer(new Slf4jLogConsumer(LoggerFactory.getLogger(getOsImage())))
+                    .withLogConsumer(outputFrame -> System.out.print("[" + getOsImage() + "] " + outputFrame.getUtf8String()))
                     .waitingFor(Wait.forLogMessage(".*SETUP_COMPLETE.*\\s*", 1)
-                            .withStartupTimeout(Duration.ofMinutes(15)));
+                            .withStartupTimeout(Duration.ofMinutes(5)));
 
             linuxContainer.start();
             System.out.println("✅ [" + getOsImage() + "] Ansible Playbook успешно отработал! Начинаем проверки (Assertions)...");
